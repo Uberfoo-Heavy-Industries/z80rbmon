@@ -8,7 +8,7 @@ INIT_RND:
     ld  (rndSeed2), hl
     ret
 
-RND:    ld  hl,(rndSeed1)   ; yw -> zt
+RAND:   ld  hl,(rndSeed1)   ; yw -> zt
         ld  de,(rndSeed2)   ; xz -> yw
         ld  (rndSeed2),hl  ; x = y, z = w
         ld  a,l         ; w = w ^ ( w << 3 )

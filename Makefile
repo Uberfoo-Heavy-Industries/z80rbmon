@@ -2,9 +2,9 @@
 
 all: z80rbmon.hex
 
-monitor.asm:
+*.asm:
 
-z80rbmon.hex: monitor.asm
+z80rbmon.hex: *.asm
 	zmac monitor.asm
 	cp zout/monitor.hex z80rbmon.hex
 

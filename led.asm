@@ -1,14 +1,14 @@
 
-num_colors	.equ	6
+num_colors	equ	6
 
-color_green	.byte	0xFF,0x00,0xFF,0x00
-color_red	.byte	0xFF,0x00,0x00,0xFF
-color_blue	.byte	0xFF,0xFF,0x00,0x00
-color_purp	.byte	0xFF,0xFF,0x00,0xFF
-color_white .byte 	0xEF,0xFE,0xFE,0xFE
-color_blank .byte 	0xE0,0x00,0x00,0x00
+color_green	byte	0xFF,0x00,0xFF,0x00
+color_red	byte	0xFF,0x00,0x00,0xFF
+color_blue	byte	0xFF,0xFF,0x00,0x00
+color_purp	byte	0xFF,0xFF,0x00,0xFF
+color_white byte 	0xEF,0xFE,0xFE,0xFE
+color_blank byte 	0xE0,0x00,0x00,0x00
 
-all_colors  .dw		color_green, color_red, color_blue, color_purp, color_white
+all_colors  dw		color_green, color_red, color_blue, color_purp, color_white
 
 ;***************************************************************************
 ; LED Functions
@@ -128,7 +128,7 @@ SEND_BYTE1:
 SEND_BIT:
 	push	af
 	ld		a, 0x05
-	out		(SIOB_C), a
+	out		(SIO_CB), a
 	pop		af
 	push	af
 	and		00000001b
@@ -139,12 +139,12 @@ SEND_0:
 	ld		a, 11101010b
 BIT_OUT:
 	push	af
-	out		(SIOB_C), a
+	out		(SIO_CB), a
 	ld		a, 0x05
-	out		(SIOB_C), a
+	out		(SIO_CB), a
 	pop		af
 	and		01111111b
-	out		(SIOB_C), a
+	out		(SIO_CB), a
 	pop		af
 	ret
 
@@ -161,19 +161,19 @@ START_FRAME1:
     ret
 
 RND_FLASH_CYCLE:
-		call	RND
+		call	RAND
 		ld		de, (rndSeed1)
 		ld		e, 5
 		call	DIV_D_E
 		add		a
 		add		a
-		call	RND
+		call	RAND
 		ld		de, (rndSeed1)
 		ld		e, 4
 		call	DIV_D_E		
 		call	ONE_WHITE
 
-		CALL 	ckincharA
+		CALL 	ckinchar
 		jr 		nz, end
 
 		push	bc

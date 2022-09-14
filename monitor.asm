@@ -22,571 +22,161 @@
 ; General Equates
 ;------------------------------------------------------------------------------
 
-CR		.EQU	0DH
-LF		.EQU	0AH
-ESC		.EQU	1BH
-CTRLC		.EQU	03H
-CLS		.EQU	0CH
-
-; CF registers
-CF_DATA		.EQU	$30
-CF_FEATURES	.EQU	$31
-CF_ERROR	.EQU	$31
-CF_SECCOUNT	.EQU	$32
-CF_SECTOR	.EQU	$33
-CF_CYL_LOW	.EQU	$34
-CF_CYL_HI	.EQU	$35
-CF_HEAD		.EQU	$36
-CF_STATUS	.EQU	$37
-CF_COMMAND	.EQU	$37
-CF_LBA0		.EQU	$33
-CF_LBA1		.EQU	$34
-CF_LBA2		.EQU	$35
-CF_LBA3		.EQU	$36
-
-;CF Features
-CF_8BIT		.EQU	1
-CF_NOCACHE	.EQU	082H
-;CF Commands
-CF_READ_SEC	.EQU	020H
-CF_WRITE_SEC	.EQU	030H
-CF_SET_FEAT	.EQU 	0EFH
-
-
-loadAddr	.EQU	0D000h	; CP/M load address
-numSecs		.EQU	24	; Number of 512 sectors to be loaded
-
+CR			equ	0x0D
+LF			equ	0x0A
+ESC			equ	0x1B
+CTRLC		equ	0x03
+CLRS		equ	0x0C
 
 ;BASIC cold and warm entry points
-BASCLD		.EQU	$2000
-BASWRM		.EQU	$2003
+BASCLD		equ	0x2000
+BASWRM		equ	0x2003
 
-SER_BUFSIZE	.EQU	40H
-SER_FULLSIZE	.EQU	30H
-SER_EMPTYSIZE	.EQU	5
+		INCLUDE "board.asm"		; Board specific definitions
 
-RTS_HIGH	.EQU	0E8H
-RTS_LOW		.EQU	0EAH
+; CF registers
+CF_DATA		equ	CFBASE
+CF_FEATURES	equ	$31
+CF_ERROR	equ	$31
+CF_SECCOUNT	equ	$32
+CF_SECTOR	equ	$33
+CF_CYL_LOW	equ	$34
+CF_CYL_HI	equ	$35
+CF_HEAD		equ	$36
+CF_STATUS	equ	$37
+CF_COMMAND	equ	$37
+CF_LBA0		equ	$33
+CF_LBA1		equ	$34
+CF_LBA2		equ	$35
+CF_LBA3		equ	$36
 
-CTC_CH0		.equ		0x10
-CTC_CH1		.equ		0x11
+;CF Features
+CF_8BIT			equ	1
+CF_NOCACHE		equ	082H
+;CF Commands
+CF_READ_SEC		equ	020H
+CF_WRITE_SEC	equ	030H
+CF_SET_FEAT		equ	0EFH
 
-; Z80 prototype board
-; SIOA_D		.EQU	$20
-; SIOA_C		.EQU	$21
-; SIOB_D		.EQU	$22
-; SIOB_C		.EQU	$23
+SER_BUFSIZE		equ	40H
+SER_FULLSIZE	equ	30H
+SER_EMPTYSIZE	equ	5
 
-; Z80 Retro Badge
-SIOA_D		.EQU	$20
-SIOA_C		.EQU	$22
-SIOB_D		.EQU	$21
-SIOB_C		.EQU	$23
+loadAddr	equ	0xD000	; CP/M load address
+numSecs		equ	24		; Number of 512 sectors to be loaded
 
-		.ORG	$4000
-serABuf		.ds	SER_BUFSIZE
-serAInPtr	.ds	2
-serARdPtr	.ds	2
-serABufUsed	.ds	1
-serBBuf		.ds	SER_BUFSIZE
-serBInPtr	.ds	2
-serBRdPtr	.ds	2
-serBBufUsed	.ds	1
+			org	0x2000
+serBuf		ds	SER_BUFSIZE
+serInPtr	ds	2
+serRdPtr	ds	2
+serBufUsed	ds	1
+SERABITS	ds	1
+TMPKEYBFR   ds	1
 
-primaryIO	.ds	1
-secNo		.ds	1
-dmaAddr		.ds	2
-rndSeed1	.ds 2
-rndSeed2	.ds 2
+secNo		ds	1
+dmaAddr		ds	2
+rndSeed1	ds	2
+rndSeed2	ds	2
 
-stackSpace	.ds	32
-STACK   	.EQU    $	; Stack top
-
+stackSpace	ds	32
+MONSTACK	ds	$
+;Need to have stack in upper RAM, but not in area of CP/M or RAM monitor.
+ROM_monitor_stack:	equ	0xdbff		;upper TPA in RAM, below RAM monitor
+TEMPSTACK	equ	0x20ED	; Top of BASIC line input buffer so is "free ram" when BASIC resets
 
 ;------------------------------------------------------------------------------
 ;                         START OF MONITOR ROM
 ;------------------------------------------------------------------------------
+MON		org		0x0000		; MONITOR ROM RESET VECTOR
 
-MON		.ORG	$0000		; MONITOR ROM RESET VECTOR
 ;------------------------------------------------------------------------------
 ; Reset
 ;------------------------------------------------------------------------------
-RST00	DI			;Disable INTerrupts
-		JP	INIT		;Initialize Hardware and go
+RST00	di					;Disable INTerrupts
+		jp		MON_INIT	;Initialize Hardware and go
+
 ;------------------------------------------------------------------------------
 ; TX a character over RS232 wait for TXDONE first.
 ;------------------------------------------------------------------------------
-RST08	.ORG	$0008
-	JP	conout
+RST08	org		0x0008
+		jp		write_char
+
+;------------------------------------------------------------------------------
+; interrupt vector when SIO ch.A has a char available in its buffer
+;------------------------------------------------------------------------------
+		org     0x000C
+		defw    rx_avail
+
+;------------------------------------------------------------------------------
+; interrupt vector for SIO ch.A special conditions (i.e. buf overrun)
+;------------------------------------------------------------------------------
+		org     0x000E
+		defw    rx_spec_cond
+
 ;------------------------------------------------------------------------------
 ; RX a character from buffer wait until char ready.
 ;------------------------------------------------------------------------------
-RST10	.ORG	$0010
-	JP	conin
+RST10	org		0x0010
+		jp		rx
+
 ;------------------------------------------------------------------------------
 ; Check input buffer status
 ;------------------------------------------------------------------------------
-RST18	.ORG	$0018
-	JP	CKINCHAR
-
-;------------------------------------------------------------------------------
-; SIO Vector = 0x60
-;------------------------------------------------------------------------------
-
-		.ORG	$0060
-		.DW	serialInt
-
-
-;------------------------------------------------------------------------------
-; Serial interrupt handlers
-; Same interrupt called if either of the inputs receives a character
-; so need to check the status of each SIO input.
-;------------------------------------------------------------------------------
-serialInt:	PUSH	AF
-		PUSH	HL
-
-		; Check if there is a char in channel A
-		; If not, there is a char in channel B
-		SUB	A
-		OUT 	(SIOA_C),A
-		IN   	A,(SIOA_C)	; Status byte D2=TX Buff Empty, D0=RX char ready	
-		RRCA			; Rotates RX status into Carry Flag,	
-		JR	NC, serialIntB
-
-serialIntA:
-		LD	HL,(serAInPtr)
-		INC	HL
-		LD	A,L
-		CP	(serABuf+SER_BUFSIZE) & $FF
-		JR	NZ, notAWrap
-		LD	HL,serABuf
-notAWrap:
-		LD	(serAInPtr),HL
-		IN	A,(SIOA_D)
-		LD	(HL),A
-
-		LD	A,(serABufUsed)
-		INC	A
-		LD	(serABufUsed),A
-		CP	SER_FULLSIZE
-		JR	C,rtsA0
-	        LD   	A,$05
-		OUT  	(SIOA_C),A
-	        LD   	A,RTS_HIGH
-		OUT  	(SIOA_C),A
-rtsA0:
-		POP	HL
-		POP	AF
-		EI
-		RETI
-
-serialIntB:
-		LD	HL,(serBInPtr)
-		INC	HL
-		LD	A,L
-		CP	(serBBuf+SER_BUFSIZE) & $FF
-		JR	NZ, notBWrap
-		LD	HL,serBBuf
-notBWrap:
-		LD	(serBInPtr),HL
-		IN	A,(SIOB_D)
-		LD	(HL),A
-
-		LD	A,(serBBufUsed)
-		INC	A
-		LD	(serBBufUsed),A
-		CP	SER_FULLSIZE
-		JR	C,rtsB0
-	        LD   	A,$05
-		OUT  	(SIOB_C),A
-	        LD   	A,RTS_HIGH
-		OUT  	(SIOB_C),A
-rtsB0:
-		POP	HL
-		POP	AF
-		EI
-		RETI
-
-;------------------------------------------------------------------------------
-; Console input routine
-; Use the "primaryIO" flag to determine which input port to monitor.
-;------------------------------------------------------------------------------
-conin:
-		PUSH	HL
-		LD	A,(primaryIO)
-		CP	0
-		JR	NZ,coninB
-coninA:
-
-waitForCharA:
-		LD	A,(serABufUsed)
-		CP	$00
-		JR	Z, waitForCharA
-		LD	HL,(serARdPtr)
-		INC	HL
-		LD	A,L
-		CP	(serABuf+SER_BUFSIZE) & $FF
-		JR	NZ, notRdWrapA
-		LD	HL,serABuf
-notRdWrapA:
-		DI
-		LD	(serARdPtr),HL
-
-		LD	A,(serABufUsed)
-		DEC	A
-		LD	(serABufUsed),A
-
-		CP	SER_EMPTYSIZE
-		JR	NC,rtsA1
-	        LD   	A,$05
-		OUT  	(SIOA_C),A
-	        LD   	A,RTS_LOW
-		OUT  	(SIOA_C),A
-rtsA1:
-		LD	A,(HL)
-		EI
-
-		POP	HL
-
-		RET	; Char ready in A
-
-
-coninB:
-
-waitForCharB:
-		LD	A,(serBBufUsed)
-		CP	$00
-		JR	Z, waitForCharB
-		LD	HL,(serBRdPtr)
-		INC	HL
-		LD	A,L
-		CP	(serBBuf+SER_BUFSIZE) & $FF
-		JR	NZ, notRdWrapB
-		LD	HL,serBBuf
-notRdWrapB:
-		DI
-		LD	(serBRdPtr),HL
-
-		LD	A,(serBBufUsed)
-		DEC	A
-		LD	(serBBufUsed),A
-
-		CP	SER_EMPTYSIZE
-		JR	NC,rtsB1
-	        LD   	A,$05
-		OUT  	(SIOB_C),A
-	        LD   	A,RTS_LOW
-		OUT  	(SIOB_C),A
-rtsB1:
-		LD	A,(HL)
-		EI
-
-		POP	HL
-
-		RET	; Char ready in A
-
-;------------------------------------------------------------------------------
-; Console output routine
-; Use the "primaryIO" flag to determine which output port to send a character.
-;------------------------------------------------------------------------------
-conout:		PUSH	AF		; Store character
-		LD	A,(primaryIO)
-		CP	0
-		JR	NZ,conoutB1
-		JR	conoutA1
-conoutA:
-		PUSH	AF
-
-conoutA1:	CALL	CKSIOA		; See if SIO channel A is finished transmitting
-		JR	Z,conoutA1	; Loop until SIO flag signals ready
-		POP	AF		; RETrieve character
-		OUT	(SIOA_D),A	; OUTput the character
-		RET
-
-conoutB:
-		PUSH	AF
-
-conoutB1:	CALL	CKSIOB		; See if SIO channel B is finished transmitting
-		JR	Z,conoutB1	; Loop until SIO flag signals ready
-		POP	AF		; RETrieve character
-		OUT	(SIOB_D),A	; OUTput the character
-		RET
-
-;------------------------------------------------------------------------------
-; I/O status check routine
-; Use the "primaryIO" flag to determine which port to check.
-;------------------------------------------------------------------------------
-CKSIOA
-		SUB	A
-		OUT 	(SIOA_C),A
-		IN   	A,(SIOA_C)	; Status byte D2=TX Buff Empty, D0=RX char ready	
-		RRCA			; Rotates RX status into Carry Flag,	
-		BIT  	1,A		; Set Zero flag if still transmitting character	
-        	RET
-
-CKSIOB
-		SUB	A
-		OUT 	(SIOB_C),A
-		IN   	A,(SIOB_C)	; Status byte D2=TX Buff Empty, D0=RX char ready	
-		RRCA			; Rotates RX status into Carry Flag,	
-		BIT  	1,A		; Set Zero flag if still transmitting character	
-        	RET
-
-;------------------------------------------------------------------------------
-; Check if there is a character in the input buffer
-; Use the "primaryIO" flag to determine which port to check.
-;------------------------------------------------------------------------------
-CKINCHAR
-		LD	A,(primaryIO)
-		CP	0
-		JR	NZ,ckincharB
-
-ckincharA:
-
-		LD	A,(serABufUsed)
-		CP	$0
-		RET
-
-ckincharB:
-
-		LD	A,(serBBufUsed)
-		CP	$0
-		RET
-
-;------------------------------------------------------------------------------
-; Filtered Character I/O
-;------------------------------------------------------------------------------
-
-RDCHR		RST	10H
-		CP	LF
-		JR	Z,RDCHR		; Ignore LF
-		CP	ESC
-		JR	NZ,RDCHR1
-		LD	A,CTRLC		; Change ESC to CTRL-C
-RDCHR1		RET
-
-WRCHR		CP	CR
-		JR	Z,WRCRLF	; When CR, write CRLF
-		CP	CLS
-		JR	Z,WR		; Allow write of "CLS"
-		CP	' '		; Don't write out any other control codes
-		JR	C,NOWR		; ie. < space
-WR		RST	08H
-NOWR		RET
-
-WRCRLF		LD	A,CR
-		RST	08H
-		LD	A,LF
-		RST	08H
-		LD	A,CR
-		RET
-
+RST18	org		0x0018
+		jp		ckinchar
 
 ;------------------------------------------------------------------------------
 ; Initialise hardware and start main loop
 ;------------------------------------------------------------------------------
-INIT		LD   SP,STACK		; Set the Stack Pointer
+MON_INIT
+		ld		SP,MONSTACK	; Set the Stack Pointer
 
+		ld		HL,serBuf
+		ld		(serInPtr),HL
 
-		;ld		de, 0x00FF
-		;call	delay
+		xor		a		;0 to accumulator
+		ld		(serBufUsed),A
 
-		LD	HL,serABuf
-		LD	(serAInPtr),HL
-		LD	(serARdPtr),HL
+		call	initialize_port
 
-		LD	HL,serBBuf
-		LD	(serBInPtr),HL
-		LD	(serBRdPtr),HL
-
-		xor	a			;0 to accumulator
-		LD	(serABufUsed),A
-		LD	(serBBufUsed),A
-
-		; CH0 provides SIO A RX/TX clock
-
-		ld      a, 00000111b    ; int off, timer on, prescaler=16, don't care ext. TRG edge,
-								; start timer on loading constant, time constant follows
-								; sw-­rst active, this is a ctrl cmd
-		out     (CTC_CH0), a
-		ld      a, 40           ; Time constant 40
-		out     (CTC_CH0), a    ; load into channel 0
-
-		ld      a, 01000111b    ; int off, counter on, don't care prescaler, don't care ext. TRG edge,
-								; don't care timer TRG, time constant follows
-								; sw-­rst active, this is a ctrl cmd
-		out     (CTC_CH1), a
-		ld      a, 40            ; Time constant 3
-		out     (CTC_CH1), a    ; load into channel 0
-
-;	Initialise SIO
-
-		LD	A,00110000b
-		OUT	(SIOA_C),A
-		LD	A,$18
-		OUT	(SIOA_C),A
-
-		LD	A,$04
-		OUT	(SIOA_C),A
-		LD	A,$04
-		OUT	(SIOA_C),A
-
-		LD	A,$01
-		OUT	(SIOA_C),A
-		LD	A,$18
-		OUT	(SIOA_C),A
-
-		LD	A,$03
-		OUT	(SIOA_C),A
-		LD	A,$E1
-		OUT	(SIOA_C),A
-
-		LD	A,$05
-		OUT	(SIOA_C),A
-		LD	A,RTS_LOW
-		OUT	(SIOA_C),A
-
-		ld      a, 00110000b    ;write into WR0: error reset, select WR0
-		out     (SIOB_C), A
-		ld      a, 0x18         ;write into WR0: channel reset
-		out     (SIOB_C), A
-		ld      a, 0x04         ;write into WR0: select WR4
-		out     (SIOB_C), A
-		ld      a, 00000000b    
-		out     (SIOB_C), A
-		ld      a, 0x05         ;write into WR0: select WR5
-		out     (SIOB_C), A
-		ld      a, 01101000b    ;DTR active, TX 8bit, BREAK off, TX on, RTS inactive
-		out     (SIOB_C), A
-
-		LD	A,$02
-		OUT	(SIOB_C),A
-		LD	A,$60		; INTERRUPT VECTOR ADDRESS
-		OUT	(SIOB_C),A
-	
-		ld      a, 0x01         ;write into WR0: select WR1
-		out     (SIOB_C), a
-		ld      a, 00000000b    ;no interrupt in CH B
-		out     (SIOB_C), a
-
+		ld		sp,ROM_monitor_stack
+		
 		; Interrupt vector in page 0
-		LD	A,$00
-		LD	I,A
-
-		IM	2
-		EI
-
+		xor		a
+		ld		i,a
+		im		2
+		ei
 
 		; Display the "Press space to start" message
-		LD		A,$00
-		LD		(primaryIO),A
-    	LD   	HL,INITTXT
-		CALL 	PRINT
+    	ld   	HL,INITTXT
+		call 	write_string
 
 		call 	LED_RED
 		call 	INIT_RND
 
 cycle:
-
-		; ld		a, 1
-		; call	ONE_WHITE
-
-		; CALL 	ckincharA
-		; jr 		nz, spacePressed
-
-		; ld		de, 0x0001
-		; call	delay
-
-		; ld		a, 2
-		; call	ONE_WHITE
-
-		; CALL 	ckincharA
-		; jr 		nz, spacePressed
-
-		; ld		de, 0x0001
-		; call	delay
-
-		; ld		a, 3
-		; call	ONE_WHITE
-
-		; CALL 	ckincharA
-		; jr 		nz, spacePressed
-
-		; ld		de, 0x0001
-		; call	delay
-
 		call	RND_FLASH_CYCLE
 
-		call 	ckincharA
-		jr 		nz, spacePressed
+		ld		hl, question_string
+		call	write_string
 
-		jr		cycle
+		call	rx	
+		cp		' '
+		jr		nz, cycle
 
-waitForSpace:
+		ld		hl, question_string
+		call	write_string
 
-		CALL ckincharA
-		jr Z,waitForSpace
-		
-		LD	A,$00
-		LD	(primaryIO),A
-		CALL	conin
-		CP	' '
-		JR	NZ, waitForSpace
+		; Clear message on console
+		ld		a, 0x0C
+		call	write_char
 
-spacePressed:
+		call 	LED_CLEAR_ALL
+		call 	LED_BLUE
 
-		; Clear message on both consoles
-		LD	A,$0C
-		CALL	conoutA
-		; CALL	conoutB
+		CALL 	write_newline
 
-		; primaryIO is now set to the channel where SPACE was pressed
-	
-		call LED_CLEAR_ALL
-		call LED_BLUE
-
-		CALL TXCRLF	; TXCRLF
-		LD   HL,SIGNON	; Print SIGNON message
-		CALL PRINT
-
-;------------------------------------------------------------------------------
-; Monitor command loop
-;------------------------------------------------------------------------------
-MAIN  		LD   HL,MAIN	; Save entry point for Monitor	
-		PUSH HL		; This is the return address
-MAIN0		CALL TXCRLF	; Entry point for Monitor, Normal	
-		LD   A,'>'	; Get a ">"	
-		RST 08H		; print it
-
-MAIN1		CALL RDCHR	; Get a character from the input port
-		CP   ' '	; <spc> or less? 	
-		JR   C,MAIN1	; Go back
-	
-		CP   ':'	; ":"?
-		JP   Z,LOAD	; First character of a HEX load
-
-		CALL WRCHR	; Print char on console
-
-		CP   '?'
-		JP   Z,HELP
-
-		AND  $5F	; Make character uppercase
-
-		CP   'R'
-		JP   Z,RST00
-
-		CP   'B'
-		JP   Z,BASIC
-
-		CP   'G'
-		JP   Z,GOTO
-
-		CP   'X'
-		JP   Z,CPMLOAD
-
-		LD   A,'?'	; Get a "?"	
-		RST 08H		; Print it
-		JR   MAIN0
+		jp 		monitor_cold_start
 	
 delay:
 	push 	bc
@@ -611,117 +201,178 @@ delay_short:
 	jr		nz, delay_short
 	ret
 
-;------------------------------------------------------------------------------
-; Print string of characters to Serial A until byte=$00, WITH CR, LF
-;------------------------------------------------------------------------------
-PRINT		LD   A,(HL)	; Get character
-		OR   A		; Is it $00 ?
-		RET  Z		; Then RETurn on terminator
-		RST  08H	; Print it
-		INC  HL		; Next Character
-		JR   PRINT	; Continue until $00
+;
+;Simple monitor program for CPUville Z80 computer with serial interface.
+monitor_cold_start:	
+	di
+	ld		hl, TEMPSTACK   ; load temp stack pointer
+	ld		sp, hl          ; set stack to temp stack pointer
+	ld		hl, serBuf      ; set beginning of input buffer
+	ld		(serInPtr), hl  ; for incoming chars to store into buffer
+	ld		(serRdPtr), hl  ; and for chars to be read from buffer
+	xor		a               ; reset a
+	ld		(serBufUsed),a  ; actual buffer size is 0
+	; call	initialize_port
+	call	LED_RED
+	call	CF_INIT
+	call	LED_BLUE
+	ld		sp,ROM_monitor_stack
+	ld		hl,monitor_message
+	call	write_string
+	xor		a
+	ld		I,a             ; set high byte of interrupt vectors to point to page 0
+	im		2               ; interrupt mode 2
+	ei                      ; enable interrupts
 
+monitor_warm_start:
+	call	LED_GREEN
+	call	write_newline	;routine program return here to avoid re-initialization of port
+	ld		a,03eh			;cursor symbol
+	call	write_char
+	ld		hl,buffer
+	call	get_line		;get monitor input string (command)
+	call	write_newline
+	call	parse			;interprets command, returns with address to jump to in hl
+	jp		(hl)
+;
+;Parses an input line stored in buffer for available commands as described in parse table.
+;Returns with address of jump to action for the command in hl
+parse:			
+	ld		bc,parse_table		;bc is pointer to parse_table
+parse_start:
+	ld		a, (bc)			;get pointer to match string from parse table
+	ld		e, a
+	inc		bc
+	ld		a, (bc)			
+	ld		d, a			;de will is pointer to strings for matching
+	ld		a, (de)			;get first char from match string
+	or		0x00			;zero?
+	jp		z, parser_exit		;yes, exit no_match
+	ld		hl, buffer		;no, parse input string 
+match_loop:
+	cp		(hl)			;compare buffer char with match string char
+	jp		nz,no_match		;no match, go to next match string
+	or		0x00			;end of strings (zero)?
+	jp		z,parser_exit		;yes, matching string found
+	inc		de			;match so far, point to next char in match string
+	ld		a, (de)			;get next character from match string
+	inc		hl			;and point to next char in input string
+	jp		match_loop		;check for match
+no_match:
+	inc		bc			;skip over jump target to
+	inc		bc
+	inc		bc			;get address of next matching string
+	jp		parse_start
+parser_exit:
+	inc		bc			;skip to address of jump for match
+	ld		a, (bc)
+	ld		l, a
+	inc		bc
+	ld		a, (bc)
+	ld		h, a			;returns with jump address in hl
+	ret
 
-TXCRLF		LD   A,$0D	; 
-		RST  08H	; Print character 
-		LD   A,$0A	; 
-		RST  08H	; Print character
-		RET
-
-;------------------------------------------------------------------------------
-; Get a character from the console, must be $20-$7F to be valid (no control characters)
-; <Ctrl-c> and <SPACE> breaks with the Zero Flag set
-;------------------------------------------------------------------------------	
-GETCHR		CALL RDCHR	; RX a Character
-		CP   $03	; <ctrl-c> User break?
-		RET  Z			
-		CP   $20	; <space> or better?
-		JR   C,GETCHR	; Do it again until we get something usable
-		RET
-;------------------------------------------------------------------------------
-; Gets two ASCII characters from the console (assuming them to be HEX 0-9 A-F)
-; Moves them into B and C, converts them into a byte value in A and updates a
-; Checksum value in E
-;------------------------------------------------------------------------------
-GET2		CALL GETCHR	; Get us a valid character to work with
-		LD   B,A	; Load it in B
-		CALL GETCHR	; Get us another character
-		LD   C,A	; load it in C
-		CALL BCTOA	; Convert ASCII to byte
-		LD   C,A	; Build the checksum
-		LD   A,E
-		SUB  C		; The checksum should always equal zero when checked
-		LD   E,A	; Save the checksum back where it came from
-		LD   A,C	; Retrieve the byte and go back
-		RET
-;------------------------------------------------------------------------------
-; Gets four Hex characters from the console, converts them to values in HL
-;------------------------------------------------------------------------------
-GETHL		LD   HL,$0000	; Gets xxxx but sets Carry Flag on any Terminator
-		CALL ECHO	; RX a Character
-		CP   $0D	; <CR>?
-		JR   NZ,GETX2	; other key		
-SETCY		SCF		; Set Carry Flag
-		RET             ; and Return to main program		
-;------------------------------------------------------------------------------
-; This routine converts last four hex characters (0-9 A-F) user types into a value in HL
-; Rotates the old out and replaces with the new until the user hits a terminating character
-;------------------------------------------------------------------------------
-GETX		LD   HL,$0000	; CLEAR HL
-GETX1		CALL ECHO	; RX a character from the console
-		CP   $0D	; <CR>
-		RET  Z		; quit
-		CP   $2C	; <,> can be used to safely quit for multiple entries
-		RET  Z		; (Like filling both DE and HL from the user)
-GETX2		CP   $03	; Likewise, a <ctrl-C> will terminate clean, too, but
-		JR   Z,SETCY	; It also sets the Carry Flag for testing later.
-		ADD  HL,HL	; Otherwise, rotate the previous low nibble to high
-		ADD  HL,HL	; rather slowly
-		ADD  HL,HL	; until we get to the top
-		ADD  HL,HL	; and then we can continue on.
-		SUB  $30	; Convert ASCII to byte	value
-		CP   $0A	; Are we in the 0-9 range?
-		JR   C,GETX3	; Then we just need to sub $30, but if it is A-F
-		SUB  $07	; We need to take off 7 more to get the value down to
-GETX3		AND  $0F	; to the right hex value
-		ADD  A,L	; Add the high nibble to the low
-		LD   L,A	; Move the byte back to A
-		JR   GETX1	; and go back for next character until he terminates
-;------------------------------------------------------------------------------
-; Convert ASCII characters in B C registers to a byte value in A
-;------------------------------------------------------------------------------
-BCTOA		LD   A,B	; Move the hi order byte to A
-		SUB  $30	; Take it down from Ascii
-		CP   $0A	; Are we in the 0-9 range here?
-		JR   C,BCTOA1	; If so, get the next nybble
-		SUB  $07	; But if A-F, take it down some more
-BCTOA1		RLCA		; Rotate the nybble from low to high
-		RLCA		; One bit at a time
-		RLCA		; Until we
-		RLCA		; Get there with it
-		LD   B,A	; Save the converted high nybble
-		LD   A,C	; Now get the low order byte
-		SUB  $30	; Convert it down from Ascii
-		CP   $0A	; 0-9 at this point?
-		JR   C,BCTOA2	; Good enough then, but
-		SUB  $07	; Take off 7 more if it's A-F
-BCTOA2		ADD  A,B	; Add in the high order nybble
-		RET
-
-;------------------------------------------------------------------------------
-; Get a character and echo it back to the user
-;------------------------------------------------------------------------------
-ECHO		CALL	RDCHR
-		CALL	WRCHR
-		RET
-
-;------------------------------------------------------------------------------
-; GOTO command
-;------------------------------------------------------------------------------
-GOTO		CALL GETHL		; ENTRY POINT FOR <G>oto addr. Get XXXX from user.
-		RET  C			; Return if invalid       	
-		PUSH HL
-		RET			; Jump to HL address value
+;Memory dump program
+;Input 4-digit hexadecimal address
+;Calls memory_dump subroutine
+dump_jump:
+	ld		hl, dump_message		;Display greeting
+	call	write_string
+	ld		hl, address_entry_msg	;get ready to get address
+	call	write_string
+	call	address_entry		;returns with address in hl
+	call	write_newline
+	call	memory_dump
+	jp		monitor_warm_start
+;
+;Hex loader, displays formatted input
+load_jump:
+	ld		hl, load_message		;Display greeting
+	call	write_string		;get address to load
+	ld		hl, address_entry_msg	;get ready to get address
+	call	write_string
+	call	address_entry
+	call	write_newline
+	call	memory_load
+	jp		monitor_warm_start
+;
+;
+;Jump and run do the same thing: get an address and jump to it.
+run_jump:
+	ld		hl, run_message		;Display greeting
+	call	write_string
+	ld		hl, address_entry_msg	;get ready to get address
+	call	write_string
+	call	address_entry
+	jp		(hl)
+;
+;Help and ? do the same thing, display the available commands
+help_jump:
+	ld		hl, help_message
+	call	write_string
+	ld		bc, parse_table		;table with pointers to command strings
+help_loop:
+	ld		a, (bc)			;displays the strings for matching commands,
+	ld		l, a			;getting the string addresses from the
+	inc		bc			;parse table
+	ld		a, (bc)			;pass address of string to hl through a reg
+	ld		h, a
+	ld		a, (hl)			;hl now points to start of match string
+	or		000h			;exit if no_match string
+	jp		z, help_done
+	push	bc			;write_char uses b register
+	ld		a, 0x20			;space char
+	call	write_char
+	pop		bc
+	call	write_string		;writes match string
+	inc		bc			;pass over jump address in table
+	inc		bc
+	inc		bc
+	jp		help_loop
+help_done:
+	jp		monitor_warm_start
+;Disk read. Need memory address to place data, LBA of sector to read
+diskrd_jump:
+	ld		hl, diskrd_message
+	call	write_string
+	ld		hl, address_entry_msg
+	call	write_string
+	call	address_entry
+	call	write_newline
+	push	hl
+	ld		hl, LBA_entry_string
+	call	write_string
+	call	decimal_entry
+	ld		b,h
+	ld		c,l
+	ld		e, 0x00
+	pop		hl
+	call	disk_read
+	jp		monitor_warm_start
+diskwr_jump:
+	ld		hl, diskwr_message
+	call	write_string
+	ld		hl, address_entry_msg
+	call	write_string
+	call	address_entry
+	call	write_newline
+	push	hl
+	ld		hl, LBA_entry_string
+	call	write_string
+	call	decimal_entry
+	ld		b, h
+	ld		c, l
+	ld		e, 0x00
+	pop		hl
+	call	disk_write
+	jp		monitor_warm_start
+;Prints message for no match to entered command
+no_match_jump:
+	ld		hl, no_match_message
+	call	write_string
+	ld		hl, buffer
+	call	write_string
+	jp		monitor_warm_start
 
 ;------------------------------------------------------------------------------
 ; LOAD Intel Hex format file from the console.
@@ -734,53 +385,56 @@ GOTO		CALL GETHL		; ENTRY POINT FOR <G>oto addr. Get XXXX from user.
 ; 6) Checksum Field - Sum of all byte values from Record Length to and 
 ;   including Checksum Field = 0 ]
 ;------------------------------------------------------------------------------	
-LOAD		LD   E,0	; First two Characters is the Record Length Field
-		CALL GET2	; Get us two characters into BC, convert it to a byte <A>
-		LD   D,A	; Load Record Length count into D
-		CALL GET2	; Get next two characters, Memory Load Address <H>
-		LD   H,A	; put value in H register.
-		CALL GET2	; Get next two characters, Memory Load Address <L>
-		LD   L,A	; put value in L register.
-		CALL GET2	; Get next two characters, Record Field Type
-		CP   $01	; Record Field Type 00 is Data, 01 is End of File
-		JR   NZ,LOAD2	; Must be the end of that file
-		CALL GET2	; Get next two characters, assemble into byte
-		LD   A,E	; Recall the Checksum byte
-		AND  A		; Is it Zero?
-		JR   Z,LOAD00	; Print footer reached message
-		JR   LOADERR	; Checksums don't add up, Error out
+; LOAD		LD   E,0	; First two Characters is the Record Length Field
+; 		CALL GET2	; Get us two characters into BC, convert it to a byte <A>
+; 		LD   D,A	; Load Record Length count into D
+; 		CALL GET2	; Get next two characters, Memory Load Address <H>
+; 		LD   H,A	; put value in H register.
+; 		CALL GET2	; Get next two characters, Memory Load Address <L>
+; 		LD   L,A	; put value in L register.
+; 		CALL GET2	; Get next two characters, Record Field Type
+; 		CP   $01	; Record Field Type 00 is Data, 01 is End of File
+; 		JR   NZ,LOAD2	; Must be the end of that file
+; 		CALL GET2	; Get next two characters, assemble into byte
+; 		LD   A,E	; Recall the Checksum byte
+; 		AND  A		; Is it Zero?
+; 		JR   Z,LOAD00	; Print footer reached message
+; 		JR   LOADERR	; Checksums don't add up, Error out
 		
-LOAD2		LD   A,D	; Retrieve line character counter	
-		AND  A		; Are we done with this line?
-		JR   Z,LOAD3	; Get two more ascii characters, build a byte and checksum
-		CALL GET2	; Get next two chars, convert to byte in A, checksum it
-		LD   (HL),A	; Move converted byte in A to memory location
-		INC  HL		; Increment pointer to next memory location	
-		LD   A,'.'	; Print out a "." for every byte loaded
-		RST  08H	;
-		DEC  D		; Decrement line character counter
-		JR   LOAD2	; and keep loading into memory until line is complete
+; LOAD2		LD   A,D	; Retrieve line character counter	
+; 		AND  A		; Are we done with this line?
+; 		JR   Z,LOAD3	; Get two more ascii characters, build a byte and checksum
+; 		CALL GET2	; Get next two chars, convert to byte in A, checksum it
+; 		LD   (HL),A	; Move converted byte in A to memory location
+; 		INC  HL		; Increment pointer to next memory location	
+; 		LD   A,'.'	; Print out a "." for every byte loaded
+; 		RST  08H	;
+; 		DEC  D		; Decrement line character counter
+; 		JR   LOAD2	; and keep loading into memory until line is complete
 		
-LOAD3		CALL GET2	; Get two chars, build byte and checksum
-		LD   A,E	; Check the checksum value
-		AND  A		; Is it zero?
-		RET  Z
+; LOAD3		CALL GET2	; Get two chars, build byte and checksum
+; 		LD   A,E	; Check the checksum value
+; 		AND  A		; Is it zero?
+; 		RET  Z
 
-LOADERR		LD   HL,CKSUMERR  ; Get "Checksum Error" message
-		CALL PRINT	; Print Message from (HL) and terminate the load
-		RET
+; LOADERR		LD   HL,CKSUMERR  ; Get "Checksum Error" message
+; 		CALL write_string	; Print Message from (HL) and terminate the load
+; 		CALL	write_newline
+; 		RET
 
-LOAD00  	LD   HL,LDETXT	; Print load complete message
-		CALL PRINT
-		RET
+; LOAD00  	LD   HL,LDETXT	; Print load complete message
+; 		CALL write_string
+; 		CALL	write_newline
+; 		RET
 
 ;------------------------------------------------------------------------------
 ; Start BASIC command
 ;------------------------------------------------------------------------------
 BASIC
-    		LD HL,BASTXT
-		CALL PRINT
-		CALL GETCHR
+    		LD HL,C_OR_W
+		CALL write_string
+		CALL	write_newline
+		CALL u_get_char
 		RET Z	; Cancel if CTRL-C
 		AND  $5F ; uppercase
 		CP 'C'
@@ -789,25 +443,19 @@ BASIC
 		JP  Z,BASWRM
 		RET
 
-;------------------------------------------------------------------------------
-; Display Help command
-;------------------------------------------------------------------------------
-HELP   	 	LD   HL,HLPTXT	; Print Help message
-		CALL PRINT
-		RET
 	
 ;------------------------------------------------------------------------------
 ; CP/M load command
 ;------------------------------------------------------------------------------
-CPMLOAD
-
-    		LD HL,CPMTXT
-		CALL PRINT
-		CALL GETCHR
-		RET Z	; Cancel if CTRL-C
-		AND  $5F ; uppercase
-		CP 'Y'
-		JP  Z,CPMLOAD2
+cpm_jump
+    	LD		HL,CPMTXT
+		CALL	write_string
+		CALL	write_newline
+		CALL	u_get_char
+		RET		Z	; Cancel if CTRL-C
+		AND		$5F ; uppercase
+		CP 		'Y'
+		JP		Z,CPMLOAD2
 		RET
 CPMTXT
 		.BYTE	$0D,$0A
@@ -821,7 +469,8 @@ CPMTXT2
 
 CPMLOAD2
     		LD HL,CPMTXT2
-		CALL PRINT
+		CALL write_string
+		CALL	write_newline
 
 
 		CALL	cfWait
@@ -861,7 +510,7 @@ processSectors:
 		LD 	A,1
 		OUT 	(CF_SECCOUNT),A
 
-		call	read
+		call	sec_read
 
 		LD	DE,0200H
 		LD	HL,(dmaAddr)
@@ -880,17 +529,17 @@ processSectors:
 ; to allow the CBIOS to pick it up
 ; 0 = SIO A, 1 = SIO B
 		
-		ld	A,(primaryIO)
-		PUSH	AF
-		ld	HL,($FFFE)
-		jp	(HL)
+		ld		A,0
+		push	AF
+		ld		HL,($FFFE)
+		jp		(HL)
 
 
 ;------------------------------------------------------------------------------
 
 ; Read physical sector from host
 
-read:
+sec_read:
 		PUSH 	AF
 		PUSH 	BC
 		PUSH 	HL
@@ -937,22 +586,19 @@ cfWait1:
 
 	INCLUDE "led.asm"
 	INCLUDE "random.asm"
+	INCLUDE "sio.asm"
+	INCLUDE "stdout.asm"
+	INCLUDE "cf_card.asm"
+	INCLUDE "utils.asm"
 
 ;------------------------------------------------------------------------------
 
-SIGNON	.BYTE	"Z80 SBC Boot ROM 1.1"
-		.BYTE	" by G. Searle"
-		.BYTE	$0D,$0A
-		.BYTE	"Type ? for options"
-		.BYTE	$0D,$0A,$00
-Q		.BYTE	"??"
-		.BYTE	$0D,$0A,$00
 BLUE		.BYTE	"BLUE"
 		.BYTE	$0D,$0A,$00
 WHITE		.BYTE	"WHITE"
 		.BYTE	$0D,$0A,$00
 
-BASTXT
+C_OR_W
 		.BYTE	$0D,$0A
 		.TEXT	"Cold or Warm ?"
 		.BYTE	$0D,$0A,$00
@@ -970,19 +616,40 @@ LDETXT
 		.BYTE	$0D,$0A, $00
 
 
-HLPTXT
-		.BYTE	$0D,$0A
-		.TEXT	"R           - Reset"
-		.BYTE	$0D,$0A
-		.TEXT	"BC or BW    - ROM BASIC Cold or Warm"
-		.BYTE	$0D,$0A
-		.TEXT	"X           - Boot CP/M (load $D000-$FFFF from disk)"
-		.BYTE	$0D,$0A
-		.TEXT	":nnnnnn...  - Load Intel-Hex file record"
-		.BYTE	$0D,$0A
-        	.BYTE   $00
+;
+;Monitor data structures:
+;
+monitor_message: 	defm	CR,LF,"  Z80 Retro Board Monitor",CR,LF
+					defm	" by Uberfoo Heavy Industries",CR,LF,CR,LF,0
+no_match_message:	defm	"? ",0
+help_message:		defm	"Commands implemented:",CR,LF,0
+dump_message:		defm	"Displays a 256-byte block of memory.",CR,LF,0
+load_message:		defm	"Enter hex bytes starting at memory location.",CR,LF,0
+run_message:		defm	"Will jump to (execute) program at address entered.",CR,LF,0
+diskrd_message:		defm	"Reads one sector from disk to memory.",CR,LF,0
+diskwr_message:		defm	"Writes one sector from memory to disk.",CR,LF,0
+;Strings for matching:
+dump_string:		defm	"dump",0
+load_string:		defm	"load",0
+jump_string:		defm	"jump",0
+run_string:		defm	"run",0
+question_string:	defm	"?",0
+help_string:		defm	"help",0
+diskrd_string:		defm	"diskrd",0
+diskwr_string:		defm	"diskwr",0
+cpm_string:		defm	"cpm",0
+no_match_string:	defm	0,0
+;Table for matching strings to jumps
+parse_table:		defw	dump_string,dump_jump,load_string,load_jump
+			defw	jump_string,run_jump,run_string,run_jump
+			defw	question_string,help_jump,help_string,help_jump
+			defw	diskrd_string,diskrd_jump,diskwr_string,diskwr_jump
+			defw	cpm_string,cpm_jump
+			defw	no_match_string,no_match_jump
 
 ;------------------------------------------------------------------------------
+
+	INCLUDE "basic.asm"
 
 FINIS		.END	
 
