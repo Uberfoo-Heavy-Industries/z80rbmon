@@ -4,10 +4,10 @@ line_count			equ		0xdb02		;byte variable in RAM
 byte_count			equ		0xdb03		;byte variable in RAM
 value_pointer		equ		0xdb04		;word variable in RAM
 current_value		equ		0xdb06		;word variable in RAM
-util_buffer			equ		0xdb08		;buffer in RAM -- up to stack area
+buffer				equ		0xdb08		;buffer in RAM -- up to stack area
 
 ;
-;Subroutine to get a string from serial input, place in util_buffer.
+;Subroutine to get a string from serial input, place in buffer.
 ;Buffer address passed in hl reg.
 ;Uses a,bc,DE,hl registers (including calls to other subroutines).
 ;Line entry ends by hitting return key. Return char not included in string (replaced by zero).
@@ -15,7 +15,7 @@ util_buffer			equ		0xdb08		;buffer in RAM -- up to stack area
 ;
 get_line:
 	ld		c, 0x00	;line position
-	ld		a, h	;put original util_buffer address in de
+	ld		a, h	;put original buffer address in de
 	ld		d, a	;after this don't need to preserve hl
 	ld		a, l	;subroutines called don't use de
 	ld		e, a
@@ -28,19 +28,19 @@ get_line_next_char:
 	cp		008h		;check if backspace (ANSI keys)
 	jp		z, get_line_backspace	;yes, jump to backspace
 	call	write_char	;put char on screen
-	ld		(de), a		;store char in util_buffer
-	inc		de			;point to next space in util_buffer
+	ld		(de), a		;store char in buffer
+	inc		de			;point to next space in buffer
 	inc		c			;inc counter
 	ld		a, 0x00
-	ld		(de),a		;leaves a zero-terminated string in util_buffer
+	ld		(de),a		;leaves a zero-terminated string in buffer
 	jp		get_line_next_char
 get_line_backspace:
 	ld		a, c		;check current position in line
 	cp		0x00		;at beginning of line?
 	jp		z, get_line_next_char	;yes, ignore backspace, get next char
-	dec		de			;no, erase char from util_buffer
+	dec		de			;no, erase char from buffer
 	dec		c			;back up one
-	ld		a, 0x00		;put a zero in util_buffer where the last char was
+	ld		a, 0x00		;put a zero in buffer where the last char was
 	ld		(de), a
 	ld		hl, erase_char_string	;ANSI sequence to delete one char from line
 	call	write_string		;transmits sequence to backspace and erase char
@@ -133,14 +133,14 @@ hex_char_table:		defm	"0123456789ABCDEF"	;ASCII hex table
 ;
 ;Subroutine to get a two-byte address from serial input.
 ;Returns with address value in hl
-;Uses locations in RAM for util_buffer and variables
-address_entry:		ld	hl,util_buffer		;location for entered string
-			call	get_line		;returns with address string in util_buffer
-			ld	hl,util_buffer		;location of stored address entry string
+;Uses locations in RAM for buffer and variables
+address_entry:		ld	hl,buffer		;location for entered string
+			call	get_line		;returns with address string in buffer
+			ld	hl,buffer		;location of stored address entry string
 			call	hex_to_byte		;will get high-order byte first
 			jp	c, address_entry_error	;if error, jump
 			ld	(current_location+1),a	;store high-order byte, little-endian
-			ld	hl,util_buffer+2		;point to low-order hex char pair
+			ld	hl,buffer+2		;point to low-order hex char pair
 			call	hex_to_byte		;get low-order byte
 			jp	c, address_entry_error	;jump if error
 			ld	(current_location),a	;store low-order byte in lower memory
@@ -152,9 +152,9 @@ address_entry_error:	ld	hl,address_error_msg
 ;
 ;Subroutine to get a decimal string, return a word value
 ;Calls decimal_string_to_word subroutine
-decimal_entry:		ld	hl,util_buffer
+decimal_entry:		ld	hl,buffer
 			call	get_line		;returns with DE pointing to terminating zero
-			ld	hl,util_buffer
+			ld	hl,buffer
 			call	decimal_string_to_word
 			ret	nc			;no error, return with word in hl
 			ld	hl,decimal_error_msg	;error, try again
@@ -167,19 +167,19 @@ decimal_entry:		ld	hl,util_buffer
 ;Carry flag clear, word value in hl if no error.
 decimal_string_to_word:	ld	b,d
 			ld	c,e			;use bc as string pointer
-			ld	(current_location),hl	;store addr. of start of util_buffer in RAM word variable
+			ld	(current_location),hl	;store addr. of start of buffer in RAM word variable
 			ld	hl,000h			;starting value zero
 			ld	(current_value),hl
 			ld	hl,decimal_place_value	;pointer to values
 			ld	(value_pointer),hl
 decimal_next_char:	dec	bc			;next char in string (moving right to left)
 			ld	hl,(current_location)	;check if at end of decimal string
-			scf				;get ready to subtract de from util_buffer addr.
+			scf				;get ready to subtract de from buffer addr.
 			ccf				;set carry to zero (clear)
-			sbc	hl,bc			;keep going if bc > or = hl (util_buffer address)
+			sbc	hl,bc			;keep going if bc > or = hl (buffer address)
 			jp	c,decimal_continue	;borrow means bc > hl
 			jp	z,decimal_continue	;z means bc = hl
-			ld	hl,(current_value)	;return if de < util_buffer address (no borrow)
+			ld	hl,(current_value)	;return if de < buffer address (no borrow)
 			scf				;get value back from RAM variable
 			ccf
 			ret				;return with carry clear, value in hl
@@ -218,9 +218,9 @@ dump_next_byte:		ld	hl,(current_location)	;get byte address from storage,
 			ld	a,(hl)			;get byte to be converted to string
 			inc	hl			;increment address and
 			ld	(current_location),hl	;store back
-			ld	hl,util_buffer		;location to store string
+			ld	hl,buffer		;location to store string
 			call	byte_to_hex_string	;convert
-			ld	hl,util_buffer		;display string
+			ld	hl,buffer		;display string
 			call	write_string
 			ld	a,(byte_count)		;next byte
 			inc	a
@@ -239,22 +239,22 @@ dump_new_line:		ld	a,000h			;reset line count to zero
 			call	write_newline
 			ld	hl,(current_location)	;location of start of line
 			ld	a,h			;high byte of address
-			ld	hl, util_buffer
+			ld	hl, buffer
 			call	byte_to_hex_string	;convert
-			ld	hl,util_buffer
+			ld	hl,buffer
 			call	write_string		;write high byte
 			ld	hl,(current_location)
 			ld	a,l			;low byte of address
-			ld	hl, util_buffer
+			ld	hl, buffer
 			call	byte_to_hex_string	;convert
-			ld	hl,util_buffer
+			ld	hl,buffer
 			call	write_string		;write low byte
 			ld	a,020h			;space
 			call	write_char
 			jp	dump_next_byte		;now write 16 bytes
 dump_done:		ld	a,000h
-			ld	hl,util_buffer
-			ld	(hl),a			;clear util_buffer of last string
+			ld	hl,buffer
+			ld	(hl),a			;clear buffer of last string
 			call	write_newline
 			ret
 ;
@@ -269,21 +269,21 @@ memory_load:		ld	(current_location),hl
 load_next_char:		call	u_get_char
 			cp	00dh			;return?
 			jp	z,load_done		;yes, quit
-			ld	(util_buffer),a
+			ld	(buffer),a
 			call	u_get_char
 			cp	00dh			;return?
 			jp	z,load_done		;yes, quit
-			ld	(util_buffer+1),a
-			ld	hl,util_buffer
+			ld	(buffer+1),a
+			ld	hl,buffer
 			call	hex_to_byte
 			jp	c,load_data_entry_error	;non-hex character
 			ld	hl,(current_location)	;get byte address from storage,
 			ld	(hl),a			;store byte
 			inc	hl			;increment address and
 			ld	(current_location),hl	;store back
-			ld	a,(util_buffer)
+			ld	a,(buffer)
 			call	write_char
-			ld	a,(util_buffer+1)
+			ld	a,(buffer+1)
 			call	write_char
 			ld	a,(line_count)		;end of line (16 characters)?
 			cp	00fh			;yes, start new line

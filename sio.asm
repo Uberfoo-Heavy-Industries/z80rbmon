@@ -1,4 +1,4 @@
-bufWrap				equ     (serBuf + SER_BUFSIZE) & $FF
+bufWrap				equ     (SERBUF_START + SER_BUFSIZE) & $FF
 
 RTS_HIGH	.EQU	0E8H
 RTS_LOW		.EQU	0EAH
@@ -56,29 +56,6 @@ initialize_port:
 	call	rts_on
 
 	ret
-
-initialize_port_b:
-    ld      a, 00110000b    ;write into WR0: error reset, select WR0
-    out     (SIO_CB), A
-    ld      a, 0x18         ;write into WR0: channel reset
-    out     (SIO_CB), A
-    ld      a, 0x04         ;write into WR0: select WR4
-    out     (SIO_CB), A
-    ld      a, 00000000b    
-    out     (SIO_CB), A
-    ld      a, 0x05         ;write into WR0: select WR5
-    out     (SIO_CB), A
-    ld      a, 01101000b    ;DTR active, TX 8bit, BREAK off, TX on, RTS inactive
-    out     (SIO_CB), A
-    ld      a, 0x02         ;write into WR0: select WR2
-    out     (SIO_CB), A
-    ld      a, 0x00         ;write into WR2: cmd line int vect (see int vec table)
-                            ;bits D3,D2,D1 are changed according to RX condition
-	out     (SIO_CB), a
-	ld      a, 0x01         ;write into WR0: select WR1
-	out     (SIO_CB), a
-	ld      a, 00000000b    ;no interrupt in CH B, special RX condition affects vect
-	out     (SIO_CB), a
 
 ;-------------------------------------------------------------------------------
 ; interrupt driven routine to get chars from Z80 SIO ch.A

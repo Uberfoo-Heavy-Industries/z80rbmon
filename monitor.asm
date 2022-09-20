@@ -36,34 +36,36 @@ BASWRM		equ	0x2003
 
 ; CF registers
 CF_DATA		equ	CFBASE
-CF_FEATURES	equ	$31
-CF_ERROR	equ	$31
-CF_SECCOUNT	equ	$32
-CF_SECTOR	equ	$33
-CF_CYL_LOW	equ	$34
-CF_CYL_HI	equ	$35
-CF_HEAD		equ	$36
-CF_STATUS	equ	$37
-CF_COMMAND	equ	$37
-CF_LBA0		equ	$33
-CF_LBA1		equ	$34
-CF_LBA2		equ	$35
-CF_LBA3		equ	$36
+CF_FEATURES	equ	0x31
+CF_ERROR	equ	0x31
+CF_SECCOUNT	equ	0x32
+CF_SECTOR	equ	0x33
+CF_CYL_LOW	equ	0x34
+CF_CYL_HI	equ	0x35
+CF_HEAD		equ	0x36
+CF_STATUS	equ	0x37
+CF_COMMAND	equ	0x37
+CF_LBA0		equ	0x33
+CF_LBA1		equ	0x34
+CF_LBA2		equ	0x35
+CF_LBA3		equ	0x36
 
 ;CF Features
 CF_8BIT			equ	1
-CF_NOCACHE		equ	082H
+CF_NOCACHE		equ	0x82
 ;CF Commands
-CF_READ_SEC		equ	020H
-CF_WRITE_SEC	equ	030H
-CF_SET_FEAT		equ	0EFH
+CF_READ_SEC		equ	0x20
+CF_WRITE_SEC	equ	0x30
+CF_SET_FEAT		equ	0xEF
 
-SER_BUFSIZE		equ	40H
-SER_FULLSIZE	equ	30H
+SER_BUFSIZE		equ	0x40
+SER_FULLSIZE	equ	0x30
 SER_EMPTYSIZE	equ	5
+SERBUF_START	equ	0x2000
 
 loadAddr	equ	0xD000	; CP/M load address
 numSecs		equ	24		; Number of 512 sectors to be loaded
+
 
 			org	0x2000
 serBuf		ds	SER_BUFSIZE
@@ -79,10 +81,7 @@ rndSeed1	ds	2
 rndSeed2	ds	2
 
 stackSpace	ds	32
-MONSTACK	ds	$
-;Need to have stack in upper RAM, but not in area of CP/M or RAM monitor.
-ROM_monitor_stack:	equ	0xdbff		;upper TPA in RAM, below RAM monitor
-TEMPSTACK	equ	0x20ED	; Top of BASIC line input buffer so is "free ram" when BASIC resets
+STACK		equ	$
 
 ;------------------------------------------------------------------------------
 ;                         START OF MONITOR ROM
@@ -125,58 +124,60 @@ RST10	org		0x0010
 RST18	org		0x0018
 		jp		ckinchar
 
+
+		INCLUDE "version.asm"	; Version number definition
+
 ;------------------------------------------------------------------------------
 ; Initialise hardware and start main loop
 ;------------------------------------------------------------------------------
-MON_INIT
-		ld		SP,MONSTACK	; Set the Stack Pointer
+MON_INIT:
+	ld		sp, STACK	; Set the Stack Pointer
 
-		ld		HL,serBuf
-		ld		(serInPtr),HL
+	ld		hl, serBuf      ; set beginning of input buffer
+	ld		(serInPtr), hl  ; for incoming chars to store into buffer
+	ld		(serRdPtr), hl  ; and for chars to be read from buffer
 
-		xor		a		;0 to accumulator
-		ld		(serBufUsed),A
+	xor		a				;0 to accumulator
+	ld		(serBufUsed), a
 
-		call	initialize_port
+	call	initialize_port
 
-		ld		sp,ROM_monitor_stack
-		
-		; Interrupt vector in page 0
-		xor		a
-		ld		i,a
-		im		2
-		ei
+	; Interrupt vector in page 0
+	xor		a
+	ld		i, a
+	im		2
+	ei
 
-		; Display the "Press space to start" message
-    	ld   	HL,INITTXT
-		call 	write_string
+	; Display the "Press space to start" message
+	ld   	hl, INITTXT
+	call 	write_string
 
-		call 	LED_RED
-		call 	INIT_RND
+	call 	LED_RED
+	call 	INIT_RND
 
 cycle:
-		call	RND_FLASH_CYCLE
+	call	RND_FLASH_CYCLE
 
-		ld		hl, question_string
-		call	write_string
+	ld		hl, question_string
+	call	write_string
 
-		call	rx	
-		cp		' '
-		jr		nz, cycle
+	call	rx
+	cp		' '
+	jr		nz, cycle
 
-		ld		hl, question_string
-		call	write_string
 
-		; Clear message on console
-		ld		a, 0x0C
-		call	write_char
+	ld		hl, question_string
+	call	write_string
 
-		call 	LED_CLEAR_ALL
-		call 	LED_BLUE
+	; Clear message on console
+	ld		a, 0x0C
+	call	write_char
 
-		CALL 	write_newline
+	call 	LED_CLEAR_ALL
 
-		jp 		monitor_cold_start
+	call 	write_newline
+
+	jp 		monitor_cold_start
 	
 delay:
 	push 	bc
@@ -202,23 +203,18 @@ delay_short:
 	ret
 
 ;
-;Simple monitor program for CPUville Z80 computer with serial interface.
+;Simple monitor program for the Z80 Retro Badge
 monitor_cold_start:	
 	di
-	ld		hl, TEMPSTACK   ; load temp stack pointer
-	ld		sp, hl          ; set stack to temp stack pointer
-	ld		hl, serBuf      ; set beginning of input buffer
-	ld		(serInPtr), hl  ; for incoming chars to store into buffer
-	ld		(serRdPtr), hl  ; and for chars to be read from buffer
-	xor		a               ; reset a
-	ld		(serBufUsed),a  ; actual buffer size is 0
-	; call	initialize_port
 	call	LED_RED
 	call	CF_INIT
 	call	LED_BLUE
-	ld		sp,ROM_monitor_stack
 	ld		hl,monitor_message
 	call	write_string
+	ld		hl,VERSION
+	call	write_string
+	call	write_newline
+	call	write_newline
 	xor		a
 	ld		I,a             ; set high byte of interrupt vectors to point to page 0
 	im		2               ; interrupt mode 2
@@ -385,154 +381,116 @@ no_match_jump:
 ; 6) Checksum Field - Sum of all byte values from Record Length to and 
 ;   including Checksum Field = 0 ]
 ;------------------------------------------------------------------------------	
-; LOAD		LD   E,0	; First two Characters is the Record Length Field
-; 		CALL GET2	; Get us two characters into BC, convert it to a byte <A>
-; 		LD   D,A	; Load Record Length count into D
-; 		CALL GET2	; Get next two characters, Memory Load Address <H>
-; 		LD   H,A	; put value in H register.
-; 		CALL GET2	; Get next two characters, Memory Load Address <L>
-; 		LD   L,A	; put value in L register.
-; 		CALL GET2	; Get next two characters, Record Field Type
-; 		CP   $01	; Record Field Type 00 is Data, 01 is End of File
-; 		JR   NZ,LOAD2	; Must be the end of that file
-; 		CALL GET2	; Get next two characters, assemble into byte
-; 		LD   A,E	; Recall the Checksum byte
-; 		AND  A		; Is it Zero?
-; 		JR   Z,LOAD00	; Print footer reached message
-; 		JR   LOADERR	; Checksums don't add up, Error out
+; LOAD		ld   E,0	; First two Characters is the Record Length Field
+; 		call GET2	; Get us two characters into bc, convert it to a byte <A>
+; 		ld   D,a	; Load Record Length count into D
+; 		call GET2	; Get next two characters, Memory Load Address <H>
+; 		ld   H,a	; put value in H register.
+; 		call GET2	; Get next two characters, Memory Load Address <L>
+; 		ld   L,a	; put value in L register.
+; 		call GET2	; Get next two characters, Record Field Type
+; 		cp   $01	; Record Field Type 00 is Data, 01 is End of File
+; 		jr   NZ,LOAD2	; Must be the end of that file
+; 		call GET2	; Get next two characters, assemble into byte
+; 		ld   a,E	; Recall the Checksum byte
+; 		and  a		; Is it Zero?
+; 		jr   Z,LOAD00	; Print footer reached message
+; 		jr   LOADERR	; Checksums don't add up, Error out
 		
-; LOAD2		LD   A,D	; Retrieve line character counter	
-; 		AND  A		; Are we done with this line?
-; 		JR   Z,LOAD3	; Get two more ascii characters, build a byte and checksum
-; 		CALL GET2	; Get next two chars, convert to byte in A, checksum it
-; 		LD   (HL),A	; Move converted byte in A to memory location
-; 		INC  HL		; Increment pointer to next memory location	
-; 		LD   A,'.'	; Print out a "." for every byte loaded
+; LOAD2		ld   a,D	; Retrieve line character counter	
+; 		and  a		; Are we done with this line?
+; 		jr   Z,LOAD3	; Get two more ascii characters, build a byte and checksum
+; 		call GET2	; Get next two chars, convert to byte in a, checksum it
+; 		ld   (hl),a	; Move converted byte in a to memory location
+; 		inc  hl		; Increment pointer to next memory location	
+; 		ld   a,'.'	; Print out a "." for every byte loaded
 ; 		RST  08H	;
 ; 		DEC  D		; Decrement line character counter
-; 		JR   LOAD2	; and keep loading into memory until line is complete
+; 		jr   LOAD2	; and keep loading into memory until line is complete
 		
-; LOAD3		CALL GET2	; Get two chars, build byte and checksum
-; 		LD   A,E	; Check the checksum value
-; 		AND  A		; Is it zero?
+; LOAD3		call GET2	; Get two chars, build byte and checksum
+; 		ld   a,E	; Check the checksum value
+; 		and  a		; Is it zero?
 ; 		RET  Z
 
-; LOADERR		LD   HL,CKSUMERR  ; Get "Checksum Error" message
-; 		CALL write_string	; Print Message from (HL) and terminate the load
-; 		CALL	write_newline
+; LOADERR		ld   hl,CKSUMERR  ; Get "Checksum Error" message
+; 		call write_string	; Print Message from (hl) and terminate the load
+; 		call	write_newline
 ; 		RET
 
-; LOAD00  	LD   HL,LDETXT	; Print load complete message
-; 		CALL write_string
-; 		CALL	write_newline
+; LOAD00  	ld   hl,LDETXT	; Print load complete message
+; 		call write_string
+; 		call	write_newline
 ; 		RET
 
-;------------------------------------------------------------------------------
-; Start BASIC command
-;------------------------------------------------------------------------------
-BASIC
-    		LD HL,C_OR_W
-		CALL write_string
-		CALL	write_newline
-		CALL u_get_char
-		RET Z	; Cancel if CTRL-C
-		AND  $5F ; uppercase
-		CP 'C'
-		JP  Z,BASCLD
-		CP 'W'
-		JP  Z,BASWRM
-		RET
-
-	
 ;------------------------------------------------------------------------------
 ; CP/M load command
 ;------------------------------------------------------------------------------
-cpm_jump
-    	LD		HL,CPMTXT
-		CALL	write_string
-		CALL	write_newline
-		CALL	u_get_char
-		RET		Z	; Cancel if CTRL-C
-		AND		$5F ; uppercase
-		CP 		'Y'
-		JP		Z,CPMLOAD2
-		RET
-CPMTXT
-		.BYTE	$0D,$0A
-		.TEXT	"Boot CP/M?"
-		.BYTE	$00
+cpm_jump:
+    	ld		hl, CPMTXT
+		call	write_string
+		call	write_newline
+		call	rx
+		ret		z		; Cancel if CTRL-C
+		and		0x5F 	; uppercase
+		cp 		'Y'
+		jp		z, CPMLOAD2
+		ret
+CPMTXT:
+		defm	CR,LF
+		defm	"Boot CP/M?",0
 
-CPMTXT2
-		.BYTE	$0D,$0A
-		.TEXT	"Loading CP/M..."
-		.BYTE	$0D,$0A,$00
+CPMTXT2:
+		defm	CR,LF
+		defm	"Loading CP/M..."
+		defm	CR,LF,0
 
-CPMLOAD2
-    		LD HL,CPMTXT2
-		CALL write_string
-		CALL	write_newline
+CPMLOAD2:
+    	ld 		hl, CPMTXT2
+		call	write_string
+		call	write_newline
 
+		ld		b,numSecs
 
-		CALL	cfWait
-		LD	A,$04
-		OUT	(CF_COMMAND),A
-
-		CALL	cfWait
-		LD 	A,CF_8BIT	; Set IDE to be 8bit
-		OUT	(CF_FEATURES),A
-		LD	A,CF_SET_FEAT
-		OUT	(CF_COMMAND),A
-
-
-		CALL	cfWait
-		LD 	A,CF_NOCACHE	; No write cache
-		OUT	(CF_FEATURES),A
-		LD	A,CF_SET_FEAT
-		OUT	(CF_COMMAND),A
-
-		LD	B,numSecs
-
-		LD	A,0
-		LD	(secNo),A
-		LD	HL,loadAddr
-		LD	(dmaAddr),HL
+		ld		a, 0
+		ld		(secNo), a
+		ld		hl, loadAddr
+		ld		(dmaAddr), hl
 processSectors:
 
-		CALL	cfWait
+		call	cfWait
 
-		LD	A,(secNo)
-		OUT 	(CF_LBA0),A
-		LD	A,0
-		OUT 	(CF_LBA1),A
-		OUT 	(CF_LBA2),A
-		LD	a,0E0H
-		OUT 	(CF_LBA3),A
-		LD 	A,1
-		OUT 	(CF_SECCOUNT),A
+		ld		a,(secNo)
+		out 	(CF_LBA0),a
+		ld		a,0
+		out 	(CF_LBA1),a
+		out 	(CF_LBA2),a
+		ld		a, 0xE0
+		out 	(CF_LBA3),a
+		ld 		a, 1
+		out 	(CF_SECCOUNT),a
 
 		call	sec_read
 
-		LD	DE,0200H
-		LD	HL,(dmaAddr)
-		ADD	HL,DE
-		LD	(dmaAddr),HL
-		LD	A,(secNo)
-		INC	A
-		LD	(secNo),A
+		ld		de, 0x0200
+		ld		hl, (dmaAddr)
+		add		hl, de
+		ld		(dmaAddr), hl
+		ld		a,(secNo)
+		inc		a
+		ld		(secNo), a
 
 		djnz	processSectors
 
-		;call LED_GREEN
-
 ; Start CP/M using entry at top of BIOS
-; The current active console stream ID is pushed onto the stack
+; The current active console stream ID is pushed onto the sta ck
 ; to allow the CBIOS to pick it up
 ; 0 = SIO A, 1 = SIO B
 		
-		ld		A,0
-		push	AF
-		ld		HL,($FFFE)
-		jp		(HL)
+		ld		a, 0
+		push	af
+		ld		hl,($FFFE)
+		jp		(hl)
 
 
 ;------------------------------------------------------------------------------
@@ -540,49 +498,49 @@ processSectors:
 ; Read physical sector from host
 
 sec_read:
-		PUSH 	AF
-		PUSH 	BC
-		PUSH 	HL
+		push 	af
+		push 	bc
+		push 	hl
 
-		CALL 	cfWait
+		call 	cfWait
 
-		LD 	A,CF_READ_SEC
-		OUT 	(CF_COMMAND),A
+		ld 	a,CF_READ_SEC
+		out 	(CF_COMMAND),a
 
-		CALL 	cfWait
+		call 	cfWait
 
-		LD 	c,4
-		LD 	HL,(dmaAddr)
+		ld 	c,4
+		ld 	hl,(dmaAddr)
 rd4secs:
-		LD 	b,128
+		ld 	b,128
 rdByte:
 		nop
 		nop
-		in 	A,(CF_DATA)
-		LD 	(HL),A
-		iNC 	HL
+		in 		a, (CF_DATA)
+		ld 		(hl), a
+		iNC 	hl
 		dec 	b
-		JR 	NZ, rdByte
+		jr 		nz, rdByte
 		dec 	c
-		JR 	NZ,rd4secs
+		jr 		nz, rd4secs
 
-		POP 	HL
-		POP 	BC
-		POP 	AF
+		pop 	hl
+		pop 	bc
+		pop 	af
 
 		RET
 
 
 ; Wait for disk to be ready (busy=0,ready=1)
 cfWait:
-		PUSH 	AF
+		push 	af
 cfWait1:
-		in 	A,(CF_STATUS)
-		AND 	080H
-		cp 	080H
-		JR	Z,cfWait1
-		POP 	AF
-		RET
+		in 		a,(CF_STATUS)
+		and 	0x80
+		cp 		0x80
+		jr		z,cfWait1
+		pop 	af
+		ret
 
 	INCLUDE "led.asm"
 	INCLUDE "random.asm"
@@ -593,34 +551,35 @@ cfWait1:
 
 ;------------------------------------------------------------------------------
 
-BLUE		.BYTE	"BLUE"
-		.BYTE	$0D,$0A,$00
-WHITE		.BYTE	"WHITE"
-		.BYTE	$0D,$0A,$00
+CKSUMERR:
+		defm	"Checksum error"
+		defm	CR,LF,0
 
-C_OR_W
-		.BYTE	$0D,$0A
-		.TEXT	"Cold or Warm ?"
-		.BYTE	$0D,$0A,$00
+INITTXT:
+		defm	0x0C
+		defm	"Press [SPACE] to activate console"
+		defm	CR,LF,0
 
-CKSUMERR	.BYTE	"Checksum error"
-		.BYTE	$0D,$0A,$00
-
-INITTXT  
-		.BYTE	$0C
-		.TEXT	"Press [SPACE] to activate console"
-		.BYTE	$0D,$0A, $00
-
-LDETXT  
-		.TEXT	"Load complete."
-		.BYTE	$0D,$0A, $00
+LDETXT:
+		defm	"Load complete."
+		defm	CR,LF,0
 
 
 ;
 ;Monitor data structures:
 ;
-monitor_message: 	defm	CR,LF,"  Z80 Retro Board Monitor",CR,LF
-					defm	" by Uberfoo Heavy Industries",CR,LF,CR,LF,0
+monitor_message:
+	defm	CR,LF
+	defm	"  _________   ___    _____      _               ____                      _ ",CR,LF
+	defm	" |___  / _ \ / _ \  |  __ \    | |             |  _ \                    | |",CR,LF
+	defm	"    / / (_) | | | | | |__) |___| |_ _ __ ___   | |_) | ___   __ _ _ __ __| |",CR,LF
+	defm	"   / / > _ <| | | | |  _  // _ \ __| '__/ _ \  |  _ < / _ \ / _` | '__/ _` |",CR,LF
+	defm	"  / /_| (_) | |_| | | | \ \  __/ |_| | | (_) | | |_) | (_) | (_| | | | (_| |",CR,LF
+	defm	" /_____\___/ \___/  |_|  \_\___|\__|_|  \___/  |____/ \___/ \__,_|_|  \__,_|",CR,LF
+	defm	CR,LF
+	defm	"                      by Uberfoo Heavy Industries",CR,LF
+	defm	"                       Version: ",0
+                                                                            
 no_match_message:	defm	"? ",0
 help_message:		defm	"Commands implemented:",CR,LF,0
 dump_message:		defm	"Displays a 256-byte block of memory.",CR,LF,0
@@ -632,25 +591,23 @@ diskwr_message:		defm	"Writes one sector from memory to disk.",CR,LF,0
 dump_string:		defm	"dump",0
 load_string:		defm	"load",0
 jump_string:		defm	"jump",0
-run_string:		defm	"run",0
+run_string:			defm	"run",0
 question_string:	defm	"?",0
 help_string:		defm	"help",0
 diskrd_string:		defm	"diskrd",0
 diskwr_string:		defm	"diskwr",0
-cpm_string:		defm	"cpm",0
+cpm_string:			defm	"cpm",0
 no_match_string:	defm	0,0
 ;Table for matching strings to jumps
-parse_table:		defw	dump_string,dump_jump,load_string,load_jump
-			defw	jump_string,run_jump,run_string,run_jump
-			defw	question_string,help_jump,help_string,help_jump
-			defw	diskrd_string,diskrd_jump,diskwr_string,diskwr_jump
-			defw	cpm_string,cpm_jump
-			defw	no_match_string,no_match_jump
+parse_table:	defw	dump_string,dump_jump,load_string,load_jump
+				defw	jump_string,run_jump,run_string,run_jump
+				defw	question_string,help_jump,help_string,help_jump
+				defw	diskrd_string,diskrd_jump,diskwr_string,diskwr_jump
+				defw	cpm_string,cpm_jump
+				defw	no_match_string,no_match_jump
 
 ;------------------------------------------------------------------------------
 
-	INCLUDE "basic.asm"
-
-FINIS		.END	
+FINIS:		.end	
 
 
