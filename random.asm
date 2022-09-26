@@ -8,6 +8,9 @@ INIT_RND:
     ld  (rndSeed2), hl
     ret
 
+;
+; PRNG function
+; 
 RAND:   ld  hl,(rndSeed1)   ; yw -> zt
         ld  de,(rndSeed2)   ; xz -> yw
         ld  (rndSeed2),hl  ; x = y, z = w
@@ -28,7 +31,9 @@ RAND:   ld  hl,(rndSeed1)   ; yw -> zt
         ld  l,a         ; w = t
         ld  (rndSeed1),hl
         ret
-
+;
+; Divide D by E
+; divides d by e and places the quotient in d and the remainder in a 
 DIV_D_E:
    xor	a
    ld	b, 8

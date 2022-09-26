@@ -16,33 +16,35 @@ CFCMD				equ		CFBASE + $07		; Command (W)
 ;Function: Initialize CF to 8 bit data transfer mode
 ;***************************************************************************	
 CF_INIT:
-	call	LOOP_BUSY
+	call	cfWait
     ;call    CF_CHK_ERR
 	ld		a, 0x04						;ld features register to enable 8 bit
 	out		(CFCMD), a
     ;call    CF_CHK_ERR
-	call	LOOP_BUSY
+	call	cfWait
 	ld		a, 0x01						;ld features register to enable 8 bit
 	out		(CFFEAT), a
     ;call    CF_CHK_ERR
-	call	LOOP_BUSY
+	call	cfWait
 	ld		a, 0xEF						;Send set features command
 	out		(CFCMD), a
     ;call    CF_CHK_ERR
-	call	LOOP_BUSY
+	call	cfWait
 	ret
 
 ;***************************************************************************
-;LOOP_BUSY
+;cfWait
 ;Function: Loops until status register bit 7 (busy) is 0
 ;***************************************************************************	
-LOOP_BUSY:
-	in		a, (CFSTAT)					;Read status
-    ld      c,a
-	and		10000000b					;Mask busy bit
-	jp		nz, LOOP_BUSY				;Loop until busy(7) is 0
-    ld      a,c
-	ret
+cfWait:
+		push 	af
+cfWait1:
+		in 		a,(CF_STATUS)
+		and 	0x80
+		cp 		0x80
+		jr		z,cfWait1
+		pop 	af
+		ret
 
 ; CF_CHK_ERR:
 ;     push	hl
@@ -97,7 +99,7 @@ rd_wait_for_DRQ_set:
 	and		0x08		;DRQ bit
 	jp		z, rd_wait_for_DRQ_set	;loop until bit set
 rd_wait_for_BSY_clear:
-	in		a, ( CFSTAT)
+	in		a, (CFSTAT)
 	and		0x80
 	jp		nz, rd_wait_for_BSY_clear
 	in		a, (CFSTAT)		;clear INTRQ

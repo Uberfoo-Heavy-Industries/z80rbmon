@@ -426,6 +426,38 @@ no_match_jump:
 ;------------------------------------------------------------------------------
 ; CP/M load command
 ;------------------------------------------------------------------------------
+boot_jump:
+    	ld		hl, BOOTTXT
+		call	write_string
+		call	write_newline
+		call	rx
+		ret		z		; Cancel if CTRL-C
+		and		0x5F 	; uppercase
+		cp 		'Y'
+		jp		z, boot_jump2
+		ret
+boot_jump2:
+    	ld 		hl, BOOTTXT2
+		call	write_string
+		call	write_newline
+
+		ld		hl, 0x3000
+		ld		a, (secNo)
+		ld		c, a
+		ld		a, 0
+		ld	 	b, a
+		ld		e, a
+
+		call	disk_read
+
+		ld		a, 0
+		push	af
+		ld		hl,(0x3000)
+		jp		(hl)
+
+;------------------------------------------------------------------------------
+; CP/M load command
+;------------------------------------------------------------------------------
 cpm_jump:
     	ld		hl, CPMTXT
 		call	write_string
@@ -434,18 +466,9 @@ cpm_jump:
 		ret		z		; Cancel if CTRL-C
 		and		0x5F 	; uppercase
 		cp 		'Y'
-		jp		z, CPMLOAD2
+		jp		z, cpm_jump2
 		ret
-CPMTXT:
-		defm	CR,LF
-		defm	"Boot CP/M?",0
-
-CPMTXT2:
-		defm	CR,LF
-		defm	"Loading CP/M..."
-		defm	CR,LF,0
-
-CPMLOAD2:
+cpm_jump2:
     	ld 		hl, CPMTXT2
 		call	write_string
 		call	write_newline
@@ -457,26 +480,22 @@ CPMLOAD2:
 		ld		hl, loadAddr
 		ld		(dmaAddr), hl
 processSectors:
+		push	b
+		
+		ld		a, (secNo)
+		ld		c, a		; Sector number into c
+		ld		a, 0
+		ld		b,a			; set b and e to 0
+		ld		e,a
 
-		call	cfWait
-
-		ld		a,(secNo)
-		out 	(CF_LBA0),a
-		ld		a,0
-		out 	(CF_LBA1),a
-		out 	(CF_LBA2),a
-		ld		a, 0xE0
-		out 	(CF_LBA3),a
-		ld 		a, 1
-		out 	(CF_SECCOUNT),a
-
-		call	sec_read
+		call	disk_read
+		pop		b
 
 		ld		de, 0x0200
 		ld		hl, (dmaAddr)
 		add		hl, de
 		ld		(dmaAddr), hl
-		ld		a,(secNo)
+		ld		a, (secNo)
 		inc		a
 		ld		(secNo), a
 
@@ -492,55 +511,6 @@ processSectors:
 		ld		hl,($FFFE)
 		jp		(hl)
 
-
-;------------------------------------------------------------------------------
-
-; Read physical sector from host
-
-sec_read:
-		push 	af
-		push 	bc
-		push 	hl
-
-		call 	cfWait
-
-		ld 	a,CF_READ_SEC
-		out 	(CF_COMMAND),a
-
-		call 	cfWait
-
-		ld 	c,4
-		ld 	hl,(dmaAddr)
-rd4secs:
-		ld 	b,128
-rdByte:
-		nop
-		nop
-		in 		a, (CF_DATA)
-		ld 		(hl), a
-		iNC 	hl
-		dec 	b
-		jr 		nz, rdByte
-		dec 	c
-		jr 		nz, rd4secs
-
-		pop 	hl
-		pop 	bc
-		pop 	af
-
-		RET
-
-
-; Wait for disk to be ready (busy=0,ready=1)
-cfWait:
-		push 	af
-cfWait1:
-		in 		a,(CF_STATUS)
-		and 	0x80
-		cp 		0x80
-		jr		z,cfWait1
-		pop 	af
-		ret
 
 	INCLUDE "led.asm"
 	INCLUDE "random.asm"
@@ -564,6 +534,22 @@ LDETXT:
 		defm	"Load complete."
 		defm	CR,LF,0
 
+BOOTTXT:
+		defm	CR,LF
+		defm	"Boot from CF card?",0
+
+BOOTTXT2:
+		defm	CR,LF
+		defm	"Booting from CF card..."
+		defm	CR,LF,0
+CPMTXT:
+		defm	CR,LF
+		defm	"Boot CP/M?",0
+
+CPMTXT2:
+		defm	CR,LF
+		defm	"Loading CP/M..."
+		defm	CR,LF,0
 
 ;
 ;Monitor data structures:
@@ -587,6 +573,7 @@ load_message:		defm	"Enter hex bytes starting at memory location.",CR,LF,0
 run_message:		defm	"Will jump to (execute) program at address entered.",CR,LF,0
 diskrd_message:		defm	"Reads one sector from disk to memory.",CR,LF,0
 diskwr_message:		defm	"Writes one sector from memory to disk.",CR,LF,0
+boot_message:		defm	"Boots from the first sector of the disk.",CR,LF,0
 ;Strings for matching:
 dump_string:		defm	"dump",0
 load_string:		defm	"load",0
@@ -597,13 +584,14 @@ help_string:		defm	"help",0
 diskrd_string:		defm	"diskrd",0
 diskwr_string:		defm	"diskwr",0
 cpm_string:			defm	"cpm",0
+boot_string:		defm	"boot",0
 no_match_string:	defm	0,0
 ;Table for matching strings to jumps
 parse_table:	defw	dump_string,dump_jump,load_string,load_jump
 				defw	jump_string,run_jump,run_string,run_jump
 				defw	question_string,help_jump,help_string,help_jump
 				defw	diskrd_string,diskrd_jump,diskwr_string,diskwr_jump
-				defw	cpm_string,cpm_jump
+				defw	cpm_string,cpm_jump,boot_string,boot_jump
 				defw	no_match_string,no_match_jump
 
 ;------------------------------------------------------------------------------

@@ -1,14 +1,13 @@
 
-num_colors	equ	6
+num_colors	equ	5
 
-color_green	byte	0xFF,0x00,0xFF,0x00
-color_red	byte	0xFF,0x00,0x00,0xFF
-color_blue	byte	0xFF,0xFF,0x00,0x00
-color_purp	byte	0xFF,0xFF,0x00,0xFF
-color_white byte 	0xEF,0xFE,0xFE,0xFE
-color_blank byte 	0xE0,0x00,0x00,0x00
-
-all_colors  dw		color_green, color_red, color_blue, color_purp, color_white
+all_colors:
+color_green	defb	0xFF,0x00,0xFF,0x00
+color_red	defb	0xFF,0x00,0x00,0xFF
+color_blue	defb	0xFF,0xFF,0x00,0x00
+color_purp	defb	0xFF,0xFF,0x00,0xFF
+color_white defb 	0xEF,0xFE,0xFE,0xFE
+color_blank defb 	0xE0,0x00,0x00,0x00
 
 ;***************************************************************************
 ; LED Functions
@@ -161,23 +160,28 @@ START_FRAME1:
     ret
 
 RND_FLASH_CYCLE:
-		call	RAND
-		ld		de, (rndSeed1)
-		ld		e, 5
-		call	DIV_D_E
-		add		a
-		add		a
-		call	RAND
-		ld		de, (rndSeed1)
+		call	RAND			; Generate random number
+		ld		de, (rndSeed1)	; Put random number in de
+		ld		e, 5			
+		call	DIV_D_E			; Divide by 5
+		add		a,a				; Multiply remainder by 4				
+		add		a,a
+		ld		hl, all_colors
+		add		a, l
+		ld		l, a			; Add a to lower byte of address in hl
+		call	RAND			; Generate random number
+		ld		de, (rndSeed1)	; Put random number in de
 		ld		e, 4
-		call	DIV_D_E		
-		call	ONE_WHITE
+		call	DIV_D_E			; Divide by 4
 
-		CALL 	ckinchar
-		jr 		nz, end
+		; a now contains the led number and hl the color address
+		call	ONE_COLOR		
+
+		CALL 	ckinchar		; Check for any input
+		jr 		nz, end			; stop if we find any
 
 		push	bc
-		ld		bc, 0x0FFF
+		ld		bc, 0x8000
 		call	delay_short
 
 		call	LED_CLEAR_ALL
