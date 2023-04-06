@@ -5,7 +5,7 @@
 ; You have permission to use this for NON COMMERCIAL USE ONLY
 ; If you wish to use it elsewhere, please include an acknowledgement to myself.
 ;
-; http://searle.hostei.com/grant/index.html
+; http://searle.wales/
 ;
 ; eMail: home.micros01@btinternet.com
 ;
@@ -556,15 +556,17 @@ CPMTXT2:
 ;
 monitor_message:
 	defm	CR,LF
-	defm	"  _________   ___    _____      _               ____                      _ ",CR,LF
-	defm	" |___  / _ \ / _ \  |  __ \    | |             |  _ \                    | |",CR,LF
-	defm	"    / / (_) | | | | | |__) |___| |_ _ __ ___   | |_) | ___   __ _ _ __ __| |",CR,LF
-	defm	"   / / > _ <| | | | |  _  // _ \ __| '__/ _ \  |  _ < / _ \ / _` | '__/ _` |",CR,LF
-	defm	"  / /_| (_) | |_| | | | \ \  __/ |_| | | (_) | | |_) | (_) | (_| | | | (_| |",CR,LF
-	defm	" /_____\___/ \___/  |_|  \_\___|\__|_|  \___/  |____/ \___/ \__,_|_|  \__,_|",CR,LF
+	defm	" _____   ____  ____     ____       __                ____            __         ",CR,LF
+	defm	"/__  /  ( __ )/ __ \   / __ \___  / /__________     / __ )____ _____/ /___ ____ ",CR,LF
+	defm	"  / /  / __  / / / /  / /_/ / _ \/ __/ ___/ __ \   / __  / __ `/ __  / __ `/ _ \",CR,LF
+	defm	" / /__/ /_/ / /_/ /  / _, _/  __/ /_/ /  / /_/ /  / /_/ / /_/ / /_/ / /_/ /  __/",CR,LF
+	defm	"/____/\____/\____/  /_/ |_|\___/\__/_/   \____/  /_____/\__,_/\__,_/\__, /\___/ ",CR,LF
+	defm	"                                                                   /____/       ",CR,LF
 	defm	CR,LF
 	defm	"                      by Uberfoo Heavy Industries",CR,LF
 	defm	"                       Version: ",0
+
+
                                                                             
 no_match_message:	defm	"? ",0
 help_message:		defm	"Commands implemented:",CR,LF,0

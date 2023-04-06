@@ -8,13 +8,14 @@ color_blue	defb	0xFF,0xFF,0x00,0x00
 color_purp	defb	0xFF,0xFF,0x00,0xFF
 color_white defb 	0xEF,0xFE,0xFE,0xFE
 color_blank defb 	0xE0,0x00,0x00,0x00
+tmp_buff	equ		0xdb08
 
 ;***************************************************************************
 ; LED Functions
 ;***************************************************************************
 
 SEND_COLOR:
-	push	bc
+	push	b
 	push	a
 	ld		b, 4		; Loop 4 times
 send_color_loop:
@@ -23,7 +24,7 @@ send_color_loop:
 	inc		hl
 	djnz	send_color_loop
 	pop 	a
-	pop		bc
+	pop		b
 	ret
 
 LED_GREEN:
@@ -47,35 +48,7 @@ LED_BLUE:
 	call 	START_FRAME
 	ret
 
-ONE_WHITE:
-	push	bc
-	ld		b, a
-	call	START_FRAME
-	cp		0
-	jr		z, ow_white
-ow_loop:
-	ld		hl, color_blank
-	call 	SEND_COLOR
-	dec		a
-	jr		nz, ow_loop
-ow_white:
-	ld		hl, color_white
-	call 	SEND_COLOR
-	ld		a, 3
-	sub		b
-	jr		z, ow_end
-ow_loop2:
-	ld		hl, color_blank
-	call 	SEND_COLOR
-	dec		a
-	jr		nz, ow_loop2
-ow_end:
-	call	START_FRAME
-	pop		bc
-	ret
-
 ONE_COLOR:
-	push	bc
 	push	hl
 	ld		b, a
 	call	START_FRAME
@@ -99,7 +72,6 @@ oc_loop2:
 	jr		nz, oc_loop2
 oc_end:
 	call	START_FRAME
-	pop		bc
 	ret
 
 LED_CLEAR_ALL:
@@ -116,11 +88,13 @@ LED_CLEAR_ALL:
 
 SEND_BYTE:
 	push	bc
-	ld		b, 0x08
+	push	af
+	ld		b, 8
 SEND_BYTE1:
+	rlca
 	call	SEND_BIT
-	rra
 	djnz	SEND_BYTE1
+	pop		af
 	pop		bc
 	ret
 
@@ -130,7 +104,7 @@ SEND_BIT:
 	out		(SIO_CB), a
 	pop		af
 	push	af
-	and		00000001b
+	bit		0, a
 	jr		z, SEND_0
 	ld		a, 11101000b
 	jr		BIT_OUT
@@ -148,7 +122,7 @@ BIT_OUT:
 	ret
 
 START_FRAME:
-	push	bc
+	push	b
 	push	a
     ld		b, 4
 START_FRAME1:
@@ -156,7 +130,7 @@ START_FRAME1:
     call	SEND_BYTE
     djnz	START_FRAME1
 	pop		a
-	pop		bc
+	pop		b
     ret
 
 RND_FLASH_CYCLE:
@@ -164,23 +138,25 @@ RND_FLASH_CYCLE:
 		ld		de, (rndSeed1)	; Put random number in de
 		ld		e, 5			
 		call	DIV_D_E			; Divide by 5
-		add		a,a				; Multiply remainder by 4				
-		add		a,a
-		ld		hl, all_colors
-		add		a, l
-		ld		l, a			; Add a to lower byte of address in hl
+		ld		c,a				; Put remainder in c
+		xor		b				; 0 out high byte in b
+		sla		c				; Multiply remainder by 4				
+		sla		c
+		push	bc				; Save color offset on the stack
 		call	RAND			; Generate random number
 		ld		de, (rndSeed1)	; Put random number in de
 		ld		e, 4
 		call	DIV_D_E			; Divide by 4
-
+		pop		bc				; Retrieve color offset from the stack
+		ld		hl, all_colors	; Load base address of colors
+		add		hl, bc			; Add color offsetto hl
+		
 		; a now contains the led number and hl the color address
 		call	ONE_COLOR		
 
-		CALL 	ckinchar		; Check for any input
+		call 	ckinchar		; Check for any input
 		jr 		nz, end			; stop if we find any
 
-		push	bc
 		ld		bc, 0x8000
 		call	delay_short
 
@@ -188,8 +164,8 @@ RND_FLASH_CYCLE:
 
 		ld		bc, 0xFFFF
 		call	delay_short
-		pop		bc
 
-		djnz	RND_FLASH_CYCLE
+		jr		RND_FLASH_CYCLE
 end:
 		ret
+
