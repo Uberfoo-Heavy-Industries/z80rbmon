@@ -371,145 +371,109 @@ no_match_jump:
 	jp		monitor_warm_start
 
 ;------------------------------------------------------------------------------
-; LOAD Intel Hex format file from the console.
-; [Intel Hex Format is:
-; 1) Colon (Frame 0)
-; 2) Record Length Field (Frames 1 and 2)
-; 3) Load Address Field (Frames 3,4,5,6)
-; 4) Record Type Field (Frames 7 and 8)
-; 5) Data Field (Frames 9 to 9+2*(Record Length)-1
-; 6) Checksum Field - Sum of all byte values from Record Length to and 
-;   including Checksum Field = 0 ]
-;------------------------------------------------------------------------------	
-; LOAD		ld   E,0	; First two Characters is the Record Length Field
-; 		call GET2	; Get us two characters into bc, convert it to a byte <A>
-; 		ld   D,a	; Load Record Length count into D
-; 		call GET2	; Get next two characters, Memory Load Address <H>
-; 		ld   H,a	; put value in H register.
-; 		call GET2	; Get next two characters, Memory Load Address <L>
-; 		ld   L,a	; put value in L register.
-; 		call GET2	; Get next two characters, Record Field Type
-; 		cp   $01	; Record Field Type 00 is Data, 01 is End of File
-; 		jr   NZ,LOAD2	; Must be the end of that file
-; 		call GET2	; Get next two characters, assemble into byte
-; 		ld   a,E	; Recall the Checksum byte
-; 		and  a		; Is it Zero?
-; 		jr   Z,LOAD00	; Print footer reached message
-; 		jr   LOADERR	; Checksums don't add up, Error out
-		
-; LOAD2		ld   a,D	; Retrieve line character counter	
-; 		and  a		; Are we done with this line?
-; 		jr   Z,LOAD3	; Get two more ascii characters, build a byte and checksum
-; 		call GET2	; Get next two chars, convert to byte in a, checksum it
-; 		ld   (hl),a	; Move converted byte in a to memory location
-; 		inc  hl		; Increment pointer to next memory location	
-; 		ld   a,'.'	; Print out a "." for every byte loaded
-; 		RST  08H	;
-; 		DEC  D		; Decrement line character counter
-; 		jr   LOAD2	; and keep loading into memory until line is complete
-		
-; LOAD3		call GET2	; Get two chars, build byte and checksum
-; 		ld   a,E	; Check the checksum value
-; 		and  a		; Is it zero?
-; 		RET  Z
-
-; LOADERR		ld   hl,CKSUMERR  ; Get "Checksum Error" message
-; 		call write_string	; Print Message from (hl) and terminate the load
-; 		call	write_newline
-; 		RET
-
-; LOAD00  	ld   hl,LDETXT	; Print load complete message
-; 		call write_string
-; 		call	write_newline
-; 		RET
-
-;------------------------------------------------------------------------------
 ; CP/M load command
 ;------------------------------------------------------------------------------
 boot_jump:
-    	ld		hl, BOOTTXT
-		call	write_string
-		call	write_newline
-		call	rx
-		ret		z		; Cancel if CTRL-C
-		and		0x5F 	; uppercase
-		cp 		'Y'
-		jp		z, boot_jump2
-		ret
+	ld		hl, BOOTTXT
+	call	write_string
+	call	write_newline
+	call	rx
+	ret		z		; Cancel if CTRL-C
+	and		0x5F 	; uppercase
+	cp 		'Y'
+	jp		z, boot_jump2
+	ret
 boot_jump2:
-    	ld 		hl, BOOTTXT2
-		call	write_string
-		call	write_newline
+	ld 		hl, BOOTTXT2
+	call	write_string
+	call	write_newline
 
-		ld		hl, 0x3000
-		ld		a, (secNo)
-		ld		c, a
-		ld		a, 0
-		ld	 	b, a
-		ld		e, a
+	ld		hl, 0x3000
+	ld		a, (secNo)
+	ld		c, a
+	ld		a, 0
+	ld	 	b, a
+	ld		e, a
 
-		call	disk_read
+	call	disk_read
 
-		ld		a, 0
-		push	af
-		ld		hl,(0x3000)
-		jp		(hl)
+	ld		a, 0
+	push	af
+	ld		hl,(0x3000)
+	jp		(hl)
 
 ;------------------------------------------------------------------------------
 ; CP/M load command
 ;------------------------------------------------------------------------------
 cpm_jump:
-    	ld		hl, CPMTXT
-		call	write_string
-		call	write_newline
-		call	rx
-		ret		z		; Cancel if CTRL-C
-		and		0x5F 	; uppercase
-		cp 		'Y'
-		jp		z, cpm_jump2
-		ret
+	ld		hl, CPMTXT
+	call	write_string
+	call	write_newline
+	call	rx
+	ret		z		; Cancel if CTRL-C
+	and		0x5F 	; uppercase
+	cp 		'Y'
+	jp		z, cpm_jump2
+	ret
 cpm_jump2:
-    	ld 		hl, CPMTXT2
-		call	write_string
-		call	write_newline
+	ld 		hl, CPMTXT2
+	call	write_string
+	call	write_newline
 
-		ld		b,numSecs
+	ld		b,numSecs
 
-		ld		a, 0
-		ld		(secNo), a
-		ld		hl, loadAddr
-		ld		(dmaAddr), hl
+	ld		a, 0
+	ld		(secNo), a
+	ld		hl, loadAddr
+	ld		(dmaAddr), hl
 processSectors:
-		push	b
-		
-		ld		a, (secNo)
-		ld		c, a		; Sector number into c
-		ld		a, 0
-		ld		b,a			; set b and e to 0
-		ld		e,a
+	push	b
+	
+	ld		a, (secNo)
+	ld		c, a		; Sector number into c
+	ld		a, 0
+	ld		b,a			; set b and e to 0
+	ld		e,a
 
-		call	disk_read
-		pop		b
+	call	disk_read
+	pop		b
 
-		ld		de, 0x0200
-		ld		hl, (dmaAddr)
-		add		hl, de
-		ld		(dmaAddr), hl
-		ld		a, (secNo)
-		inc		a
-		ld		(secNo), a
+	ld		de, 0x0200
+	ld		hl, (dmaAddr)
+	add		hl, de
+	ld		(dmaAddr), hl
+	ld		a, (secNo)
+	inc		a
+	ld		(secNo), a
 
-		djnz	processSectors
+	djnz	processSectors
 
 ; Start CP/M using entry at top of BIOS
 ; The current active console stream ID is pushed onto the sta ck
 ; to allow the CBIOS to pick it up
 ; 0 = SIO A, 1 = SIO B
 		
-		ld		a, 0
-		push	af
-		ld		hl,($FFFE)
-		jp		(hl)
+	ld		a, 0
+	push	af
+	ld		hl,($FFFE)
+	jp		(hl)
+
+led_jump:
+	; Clear message on console
+	ld		a, 0x0C
+	call	write_char
+
+	; Display the "Press space to start" message
+	ld   	hl, INITTXT
+	call 	write_string
+
+	call 	RND_FLASH_CYCLE
+
+	call	rx				; Check for spacebar press
+	cp		' '
+	jr		nz, led_jump
+
+	jp		monitor_cold_start
 
 
 	INCLUDE "led.asm"
@@ -575,10 +539,12 @@ load_message:		defm	"Enter hex bytes starting at memory location.",CR,LF,0
 run_message:		defm	"Will jump to (execute) program at address entered.",CR,LF,0
 diskrd_message:		defm	"Reads one sector from disk to memory.",CR,LF,0
 diskwr_message:		defm	"Writes one sector from memory to disk.",CR,LF,0
+cpm_message:		defm	"Boots CP/M 2.2 from CF card",CR,LF,0
 boot_message:		defm	"Boots from the first sector of the disk.",CR,LF,0
+led_message:		defm	"Restarts LED flash routine",CR,LF,0
+
 ;Strings for matching:
 dump_string:		defm	"dump",0
-load_string:		defm	"load",0
 jump_string:		defm	"jump",0
 run_string:			defm	"run",0
 question_string:	defm	"?",0
@@ -587,14 +553,16 @@ diskrd_string:		defm	"diskrd",0
 diskwr_string:		defm	"diskwr",0
 cpm_string:			defm	"cpm",0
 boot_string:		defm	"boot",0
+led_string:			defm	"led",0
 no_match_string:	defm	0,0
+
 ;Table for matching strings to jumps
-parse_table:	defw	dump_string,dump_jump,load_string,load_jump
+parse_table:	defw	dump_string,dump_jump
 				defw	jump_string,run_jump,run_string,run_jump
 				defw	question_string,help_jump,help_string,help_jump
 				defw	diskrd_string,diskrd_jump,diskwr_string,diskwr_jump
 				defw	cpm_string,cpm_jump,boot_string,boot_jump
-				defw	no_match_string,no_match_jump
+				defw	led_string,led_jump,no_match_string,no_match_jump
 
 ;------------------------------------------------------------------------------
 
