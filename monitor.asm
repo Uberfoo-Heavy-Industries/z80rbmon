@@ -67,7 +67,7 @@ loadAddr	equ	0xD000	; CP/M load address
 numSecs		equ	24		; Number of 512 sectors to be loaded
 
 
-			org	0x2000
+			org	SERBUF_START
 serBuf		ds	SER_BUFSIZE
 serInPtr	ds	2
 serRdPtr	ds	2
@@ -80,7 +80,7 @@ dmaAddr		ds	2
 rndSeed1	ds	2
 rndSeed2	ds	2
 
-stackSpace	ds	32
+stackSpace	ds	255
 STACK		equ	$
 
 ;------------------------------------------------------------------------------
@@ -131,44 +131,40 @@ RST18	org		0x0018
 ; Initialise hardware and start main loop
 ;------------------------------------------------------------------------------
 MON_INIT:
+	
 	ld		sp, STACK	; Set the Stack Pointer
 
 	ld		hl, serBuf      ; set beginning of input buffer
 	ld		(serInPtr), hl  ; for incoming chars to store into buffer
 	ld		(serRdPtr), hl  ; and for chars to be read from buffer
 
-	xor		a				;0 to accumulator
+	xor		a				; 0 to accumulator
 	ld		(serBufUsed), a
+	ld		(TMPKEYBFR),a
 
 	call	initialize_port
 
-	; Interrupt vector in page 0
-	xor		a
-	ld		i, a
-	im		2
-	ei
 
-	; Display the "Press space to start" message
+	; Display the start message
 	ld   	hl, INITTXT
 	call 	write_string
 
 	call 	LED_RED
 	call 	INIT_RND
 
+	xor		a		; 0 to accumulator
+	ld		I,a     ; set high byte of interrupt vectors to point to page 0
+	im		2       ; interrupt mode 2
+	ei
+
 cycle:
 	call	RND_FLASH_CYCLE
 
-	ld		hl, question_string
-	call	write_string
-
 	call	rx
+
 	cp		' '
 	jr		nz, cycle
-
-
-	ld		hl, question_string
-	call	write_string
-
+	
 	; Clear message on console
 	ld		a, 0x0C
 	call	write_char
@@ -205,7 +201,7 @@ delay_short:
 ;
 ;Simple monitor program for the Z80 Retro Badge
 monitor_cold_start:	
-	di
+	di						; disable interrupts
 	call	LED_RED
 	call	CF_INIT
 	call	LED_BLUE
@@ -215,9 +211,6 @@ monitor_cold_start:
 	call	write_string
 	call	write_newline
 	call	write_newline
-	xor		a
-	ld		I,a             ; set high byte of interrupt vectors to point to page 0
-	im		2               ; interrupt mode 2
 	ei                      ; enable interrupts
 
 monitor_warm_start:
@@ -226,6 +219,7 @@ monitor_warm_start:
 	ld		a,03eh			;cursor symbol
 	call	write_char
 	ld		hl,buffer
+	call	rts_on
 	call	get_line		;get monitor input string (command)
 	call	write_newline
 	call	parse			;interprets command, returns with address to jump to in hl
@@ -520,6 +514,7 @@ CPMTXT2:
 ;
 monitor_message:
 	defm	CR,LF
+	defm	ESC,"[32m"
 	defm	" _____   ____  ____     ____       __                ____            __         ",CR,LF
 	defm	"/__  /  ( __ )/ __ \   / __ \___  / /__________     / __ )____ _____/ /___ ____ ",CR,LF
 	defm	"  / /  / __  / / / /  / /_/ / _ \/ __/ ___/ __ \   / __  / __ `/ __  / __ `/ _ \",CR,LF
@@ -527,8 +522,9 @@ monitor_message:
 	defm	"/____/\____/\____/  /_/ |_|\___/\__/_/   \____/  /_____/\__,_/\__,_/\__, /\___/ ",CR,LF
 	defm	"                                                                   /____/       ",CR,LF
 	defm	CR,LF
+	defm	ESC,"[97m"
 	defm	"                      by Uberfoo Heavy Industries",CR,LF
-	defm	"                       Version: ",0
+	defm	"                       Version: ",ESC,"[0m",0
 
 
                                                                             

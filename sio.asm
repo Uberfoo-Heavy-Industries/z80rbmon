@@ -21,8 +21,8 @@ initialize_port:
 							; don't care timer TRG, time constant follows
 							; sw-­rst active, this is a ctrl cmd
 	out     (CTC_CH1), a
-	ld      a, 3            ; Time constant 3
-	out     (CTC_CH1), a    ; load into channel 0
+	ld      a, 40           ; Time constant 40
+	out     (CTC_CH1), a    ; load into channel 1
 
 	ld      a,0xE8
 	ld      (SERABITS),a  ; set serial ports status to ON
@@ -34,16 +34,22 @@ initialize_port:
 	out     (SIO_CA), a
 	ld      a, 0x04         ;write into WR0: select WR4
 	out     (SIO_CA), a
-	ld      a, 0x04          ;04h write into WR4: clkx1,1 stop bit, no parity
+	ld      a, 0x04         ;04h write into WR4: clkx1,1 stop bit, no parity
 	out     (SIO_CA), a
+
 	ld      a, 0x05         ;write into WR0: select WR5
 	out     (SIO_CA), a
 	ld      a, (SERABITS)   ;DTR active, TX 8bit, BREAK off, TX on, RTS inactive
 	out     (SIO_CA), a
 
-	ld      a, 0x01          ;write into WR0: select WR1
+	ld      a, 0x01         ;write into WR0: select WR1
 	out     (SIO_CB), a
 	ld      a, 00000100b    ;no interrupt in CH B, special RX condition affects vect
+	out     (SIO_CB), a
+
+	ld      a, 0x02         ;write into WR0: select WR2
+	out     (SIO_CB), a
+	ld      a, 0x00         ;interrupt vector
 	out     (SIO_CB), a
 
 	ld      a, 0x01         ;write into WR0: select WR1
@@ -60,13 +66,14 @@ initialize_port:
 ;-------------------------------------------------------------------------------
 ; interrupt driven routine to get chars from Z80 SIO ch.A
 rx_avail:   
+	di
 	push    af              ; store a
 	push    hl              ; and hl
-	call    rts_off       ; disable RTS line
+	call    rts_off         ; disable RTS line
 	in      a, (SIO_DA)     ; read char from RX buffer into a
 	ld      (TMPKEYBFR), a  ; store it into the temp key buffer
 	call    char_into_buffer     ; sub-routine to put the char into the input buffer
-	jp      NC, lvrx     ; if buffer is full, then leave without doing anything else
+	jp      NC, lvrx        ; if buffer is full, then leave without doing anything else
 	ld      a, (TMPKEYBFR)  ; retrieve char
 lvrx:
 	pop		hl              ; retrieve hl
@@ -80,7 +87,7 @@ lvrx:
 ; a break char
 rx_spec_cond:  
 	push    af              ; store af
-	call    rts_off       ; disable RTS
+	call    rts_off         ; disable RTS
 	call    sio_a_di        ; disable RX on ch. A
 	out     (SIO_CA), a     ; send command to SIO
 empty_buffer:
@@ -88,9 +95,9 @@ empty_buffer:
 	out		(SIO_CA), a     ; write to WR0, select RR0
 	in		a, (SIO_CA)     ; read RR0 register
 	and		0x01            ; check if input buffer if empty
-	jp		z, buffer_empty  ; if yes (bit 0 = 0) then leave
+	jp		z, buffer_empty ; if yes (bit 0 = 0) then leave
 	in		a, (SIO_DA)     ; read chars
-	jr		empty_buffer     ; repeat
+	jr		empty_buffer    ; repeat
 buffer_empty:
 	pop		af              ; retrieve af
 	ld		hl, 0x00        ; return point set to start of memory
@@ -141,15 +148,15 @@ sio_a_di:
 	out     (SIO_CA), a
 	ld      a, 0xC0          ; RX 8bit, auto enable off, RX off
 	out     (SIO_CA), a
-	ret                     ; return
+	ret                      ; return
 
 ;-------------------------------------------------------------------------------
 ; enable SIO RX channel
 sio_a_ei:
 	ld      a, 0x03          ; write into WR0: select WR3
-	out     (SIO_CA), a           ; select register
+	out     (SIO_CA), a      ; select register
 	ld      a, 0xC1          ; RX 8bit, auto enable off, RX on
-	out     (SIO_CA), a           ; send settings to SIO
+	out     (SIO_CA), a      ; send settings to SIO
 	ret
 
 ;------------------------------------------------------------------------------
@@ -179,7 +186,7 @@ notwrap:
 	ld      a,SER_FULLSIZE  ; input buffer capacity
 	cp      (hl)            ; check if input buffer is full
 	ret     c               ; exit if buffer is not full
-	call    rts_off     ; ...receiving further chars must be stopped
+	call    rts_off         ; ...receiving further chars must be stopped
 	scf                     ; set Carry flag, because  we must inform that the char has been added before to disable RTS
 	ret
 
@@ -188,7 +195,7 @@ notwrap:
 rx:
 	ld      a, (serBufUsed) ; load the buffer size
 	and     a               ; check if it's 0 (empty)
-	jp      z, rx          ; if it's empty, wait for a char
+	jp      z, rx           ; if it's empty, wait for a char
 	di                      ; disable interrupts
 	push    hl              ; store hl
 	ld      hl, (serRdPtr)  ; load pointer to first available char
@@ -203,8 +210,8 @@ notrdwrap:
 	dec     a               ; decrement it
 	ld      (serBufUsed), a ; and store the new size
 	cp      SER_EMPTYSIZE   ; check if input buffer can be considered empty
-	jr      NC, rx_exit    ; if not empty yet, then exit
-	call    rts_on        ; set RTS on
+	jr      NC, rx_exit     ; if not empty yet, then exit
+	call    rts_on          ; set RTS on
 rx_exit:
 	ld      a, (hl)         ; recover the char and return it into a
 	pop     hl              ; retrieve hl

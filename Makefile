@@ -6,7 +6,7 @@ all: z80rbmon.hex
 *.asm:
 
 version.asm:
-	echo VERSION text \"v1-`date -u +%Y%m%d%H%M`\",0 > version.asm
+	echo VERSION text \"v1.1-`date -u +%Y%m%d%H%M`\",0 > version.asm
 
 z80rbmon.hex: *.asm version.asm
 	zmac monitor.asm
