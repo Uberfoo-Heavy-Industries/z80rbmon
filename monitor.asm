@@ -1,19 +1,3 @@
-;==================================================================================
-; Contents of this file are copyright Grant Searle
-; HEX routines from Joel Owens.
-;
-; You have permission to use this for NON COMMERCIAL USE ONLY
-; If you wish to use it elsewhere, please include an acknowledgement to myself.
-;
-; http://searle.wales/
-;
-; eMail: home.micros01@btinternet.com
-;
-; If the above don't work, please perform an Internet search to see if I have
-; updated the web page hosting service.
-;
-;==================================================================================
-
 ;------------------------------------------------------------------------------
 ;
 ; Z80 Monitor Rom
@@ -27,10 +11,6 @@ LF			equ	0x0A
 ESC			equ	0x1B
 CTRLC		equ	0x03
 CLRS		equ	0x0C
-
-;BASIC cold and warm entry points
-BASCLD		equ	0x2000
-BASWRM		equ	0x2003
 
 		INCLUDE "board.asm"		; Board specific definitions
 
@@ -87,18 +67,8 @@ STACK		equ	$
 ;                         START OF MONITOR ROM
 ;------------------------------------------------------------------------------
 MON		org		0x0000		; MONITOR ROM RESET VECTOR
-
-;------------------------------------------------------------------------------
-; Reset
-;------------------------------------------------------------------------------
-RST00	di					;Disable INTerrupts
-		jp		MON_INIT	;Initialize Hardware and go
-
-;------------------------------------------------------------------------------
-; TX a character over RS232 wait for TXDONE first.
-;------------------------------------------------------------------------------
-RST08	org		0x0008
-		jp		write_char
+		di					; Disable INTerrupts
+		jp		MON_INIT	; Initialize Hardware and go
 
 ;------------------------------------------------------------------------------
 ; interrupt vector when SIO ch.A has a char available in its buffer
@@ -111,18 +81,6 @@ RST08	org		0x0008
 ;------------------------------------------------------------------------------
 		org     0x000E
 		defw    rx_spec_cond
-
-;------------------------------------------------------------------------------
-; RX a character from buffer wait until char ready.
-;------------------------------------------------------------------------------
-RST10	org		0x0010
-		jp		rx
-
-;------------------------------------------------------------------------------
-; Check input buffer status
-;------------------------------------------------------------------------------
-RST18	org		0x0018
-		jp		ckinchar
 
 
 		INCLUDE "version.asm"	; Version number definition
@@ -143,7 +101,6 @@ MON_INIT:
 	ld		(TMPKEYBFR),a
 
 	call	initialize_port
-
 
 	; Display the start message
 	ld   	hl, INITTXT
@@ -202,19 +159,24 @@ delay_short:
 ;Simple monitor program for the Z80 Retro Badge
 monitor_cold_start:	
 	di						; disable interrupts
+	
 	call	LED_RED
 	call	CF_INIT
 	call	LED_BLUE
+
 	ld		hl,monitor_message
 	call	write_string
 	ld		hl,VERSION
 	call	write_string
+
 	call	write_newline
 	call	write_newline
+	
 	ei                      ; enable interrupts
 
 monitor_warm_start:
 	call	LED_GREEN
+	
 	call	write_newline	;routine program return here to avoid re-initialization of port
 	ld		a,03eh			;cursor symbol
 	call	write_char
@@ -467,8 +429,13 @@ led_jump:
 	cp		' '
 	jr		nz, led_jump
 
-	jp		monitor_cold_start
+	jp		monitor_warm_start
 
+about_jump:
+	ld		hl,about_txt
+	call	write_string
+
+	jp		monitor_warm_start
 
 	INCLUDE "led.asm"
 	INCLUDE "random.asm"
@@ -526,7 +493,21 @@ monitor_message:
 	defm	"                      by Uberfoo Heavy Industries",CR,LF
 	defm	"                       Version: ",ESC,"[0m",0
 
-
+about_txt:
+	defm	CR,LF
+	defm	ESC,"[97m"
+	defm	"                      - Z80 Retro Badge Monitor -",CR,LF
+	defm    ESC,"[0m"
+	defm	CR,LF
+	defm	"This firmware was custom made for the Z80 Retro Badge 
+	defm    "by Uberfoo Heavy Industries",CR,LF
+	defm	CR,LF
+	defm	"The contents of this firmware includes work by Grant Searle and Joel Owens.",CR,LF
+	defm	"Grant Searle can be found at: http://searle.wales/",CR,LF
+	defm    "or home.micros01@btinternet.com",CR,LF
+	defm	CR,LF
+	defm	"Created for DEF CON 31. More information at: https://heavy.uberfoo.net/z80rb",CR,LF
+	defm	CR,LF
                                                                             
 no_match_message:	defm	"? ",0
 help_message:		defm	"Commands implemented:",CR,LF,0
@@ -535,9 +516,10 @@ load_message:		defm	"Enter hex bytes starting at memory location.",CR,LF,0
 run_message:		defm	"Will jump to (execute) program at address entered.",CR,LF,0
 diskrd_message:		defm	"Reads one sector from disk to memory.",CR,LF,0
 diskwr_message:		defm	"Writes one sector from memory to disk.",CR,LF,0
-cpm_message:		defm	"Boots CP/M 2.2 from CF card",CR,LF,0
+cpm_message:		defm	"Boots CP/M 2.2 from disk",CR,LF,0
 boot_message:		defm	"Boots from the first sector of the disk.",CR,LF,0
 led_message:		defm	"Restarts LED flash routine",CR,LF,0
+about_message:		defm	"About information",CR,LF,0
 
 ;Strings for matching:
 dump_string:		defm	"dump",0
@@ -550,6 +532,7 @@ diskwr_string:		defm	"diskwr",0
 cpm_string:			defm	"cpm",0
 boot_string:		defm	"boot",0
 led_string:			defm	"led",0
+about_string:		defm	"about",0
 no_match_string:	defm	0,0
 
 ;Table for matching strings to jumps
@@ -558,7 +541,8 @@ parse_table:	defw	dump_string,dump_jump
 				defw	question_string,help_jump,help_string,help_jump
 				defw	diskrd_string,diskrd_jump,diskwr_string,diskwr_jump
 				defw	cpm_string,cpm_jump,boot_string,boot_jump
-				defw	led_string,led_jump,no_match_string,no_match_jump
+				defw	led_string,led_jump,about_string,about_jump
+				defw    no_match_string,no_match_jump
 
 ;------------------------------------------------------------------------------
 
