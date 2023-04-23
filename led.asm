@@ -11,8 +11,7 @@ color_yell  defb    0xE4,0xFF,0xFF,0x00
 color_cyan  defb    0xE4,0x00,0xFF,0xFF
 color_white defb 	0xE4,0xFE,0xFE,0xFE
 color_blank defb 	0xE0,0x00,0x00,0x00
-tmp_buff	equ		0xdb08
-color_buff  equ		0xdb0f
+
 ;***************************************************************************
 ; LED Functions
 ;***************************************************************************
