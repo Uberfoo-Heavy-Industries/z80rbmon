@@ -35,7 +35,7 @@ CF_INIT:
 cfWait:
 		push 	af
 cfWait1:
-		in 		a,(CF_STATUS)	; Read status address
+		in 		a,(CFSTAT)	; Read status address
 		and 	0x80			; Mask for busy bit
 		cp 		0x80			; Compare busy bit
 		jr		z,cfWait1		; Loop if still busy

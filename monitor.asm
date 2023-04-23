@@ -1,6 +1,6 @@
 ;------------------------------------------------------------------------------
 ;
-; Z80 Monitor Rom
+; Z80 Retro Badge Monitor firmware
 ;
 ;------------------------------------------------------------------------------
 ; General Equates
@@ -13,30 +13,6 @@ CTRLC		equ	0x03
 CLRS		equ	0x0C
 
 		INCLUDE "board.asm"		; Board specific definitions
-
-; CF registers
-CF_DATA		equ	CFBASE
-CF_FEATURES	equ	0x31
-CF_ERROR	equ	0x31
-CF_SECCOUNT	equ	0x32
-CF_SECTOR	equ	0x33
-CF_CYL_LOW	equ	0x34
-CF_CYL_HI	equ	0x35
-CF_HEAD		equ	0x36
-CF_STATUS	equ	0x37
-CF_COMMAND	equ	0x37
-CF_LBA0		equ	0x33
-CF_LBA1		equ	0x34
-CF_LBA2		equ	0x35
-CF_LBA3		equ	0x36
-
-;CF Features
-CF_8BIT			equ	1
-CF_NOCACHE		equ	0x82
-;CF Commands
-CF_READ_SEC		equ	0x20
-CF_WRITE_SEC	equ	0x30
-CF_SET_FEAT		equ	0xEF
 
 SER_BUFSIZE		equ	0x40
 SER_FULLSIZE	equ	0x30
@@ -499,7 +475,7 @@ about_txt:
 	defm	"                      - Z80 Retro Badge Monitor -",CR,LF
 	defm    ESC,"[0m"
 	defm	CR,LF
-	defm	"This firmware was custom made for the Z80 Retro Badge 
+	defm	"This firmware was custom made for the Z80 Retro Badge",CR,LF
 	defm    "by Uberfoo Heavy Industries",CR,LF
 	defm	CR,LF
 	defm	"The contents of this firmware includes work by Grant Searle and Joel Owens.",CR,LF
