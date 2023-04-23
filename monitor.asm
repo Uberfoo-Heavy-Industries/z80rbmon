@@ -17,7 +17,7 @@ CLRS		equ	0x0C
 SER_BUFSIZE		equ	0x40
 SER_FULLSIZE	equ	0x30
 SER_EMPTYSIZE	equ	5
-SERBUF_START	equ	0x2000	; Place serial buffer at the top of RAM
+SERBUF_START	equ	CBOOT_BASE	; Place serial buffer at the top of RAM
 
 loadAddr	equ	0xD000	; CP/M load address
 numSecs		equ	24		; Number of 512 sectors to be loaded
@@ -46,7 +46,7 @@ STACK		equ	$
 ;                         START OF MONITOR ROM
 ;------------------------------------------------------------------------------
 MON		org		0x0000		; MONITOR ROM RESET VECTOR
-		di					; Disable INTerrupts
+		di					; Disable Interrupts
 		jp		MON_INIT	; Initialize Hardware and go
 
 ;------------------------------------------------------------------------------
