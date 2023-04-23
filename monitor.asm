@@ -496,10 +496,6 @@ load_message:		defm	"Enter hex bytes starting at memory location.",CR,LF,0
 run_message:		defm	"Will jump to (execute) program at address entered.",CR,LF,0
 diskrd_message:		defm	"Reads one sector from disk to memory.",CR,LF,0
 diskwr_message:		defm	"Writes one sector from memory to disk.",CR,LF,0
-cpm_message:		defm	"Boots CP/M 2.2 from disk",CR,LF,0
-boot_message:		defm	"Boots from the first sector of the disk.",CR,LF,0
-led_message:		defm	"Restarts LED flash routine",CR,LF,0
-about_message:		defm	"About information",CR,LF,0
 
 ;Strings for matching:
 dump_string:		defm	"dump",0
