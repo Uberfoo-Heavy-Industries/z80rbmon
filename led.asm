@@ -22,9 +22,9 @@ SEND_COLOR:
 	push	a
 	ld		b, 4		; Loop 4 times
 send_color_loop:
-	ld		a, (hl)
+	ld		a, (hl)		; load byte into a
     call	SEND_BYTE
-	inc		hl
+	inc		hl			; increment address
 	djnz	send_color_loop
 	pop 	a
 	pop		b
@@ -53,25 +53,25 @@ LED_BLUE:
 
 ONE_COLOR:
 	push	hl
-	ld		b, a
+	ld		b, a			; Make a copy of (a)
 	call	START_FRAME
-	cp		0
-	jr		z, oc_color
+	cp		0				; If index is 0
+	jr		z, oc_color		; skip to color
 oc_loop:
-	ld		hl, color_blank
+	ld		hl, color_blank	; Send a blank
 	call 	SEND_COLOR
-	dec		a
+	dec		a				; loop (a) times
 	jr		nz, oc_loop
 oc_color:
-	pop		hl
+	pop		hl				; retrieve the color address
 	call 	SEND_COLOR
-	ld		a, 3
-	sub		b
-	jr		z, oc_end
+	ld		a, 3			; calculate the number of 
+	sub		b				; LEDs remaining
+	jr		z, oc_end		; Skip if no LEDs remaining
 oc_loop2:
-	ld		hl, color_blank
+	ld		hl, color_blank ; Send a blank
 	call 	SEND_COLOR
-	dec		a
+	dec		a				; loop (a) times
 	jr		nz, oc_loop2
 oc_end:
 	call	START_FRAME
@@ -92,35 +92,35 @@ LED_CLEAR_ALL:
 SEND_BYTE:
 	push	bc
 	push	a
-	ld		b, 8
+	ld		b, 8		; Send 8 bits
 SEND_BYTE1:
-	rlca
+	rlca				; Shift highest bit into lowest bit position
 	call	SEND_BIT
-	djnz	SEND_BYTE1
+	djnz	SEND_BYTE1	; loop 8 times
 	pop		a
 	pop		bc
 	ret
 
 SEND_BIT:
 	push	a
-	ld		a, 0x05
-	out		(SIO_CB), a
-	pop		a
+	ld		a, 0x05		; register WR5
+	out		(SIO_CB), a	; channel B
+	pop		a			; retrieve bit
 	push	a
-	bit		0, a
-	jr		z, SEND_0
-	ld		a, 11101000b
-	jr		BIT_OUT
+	bit		0, a		; check lowest bit
+	jr		z, SEND_0	
+	ld		a, 11101000b	; RTS high, DTR low
+	jr		BIT_OUT			
 SEND_0:
-	ld		a, 11101010b
+	ld		a, 11101010b	; RTS low, DTR low
 BIT_OUT:
 	push	a
-	out		(SIO_CB), a
-	ld		a, 0x05
+	out		(SIO_CB), a		; set RTS
+	ld		a, 0x05			; register WR5
 	out		(SIO_CB), a
 	pop		a
-	and		01111111b
-	out		(SIO_CB), a
+	and		01111111b		; reset DTR bit, DTR high
+	out		(SIO_CB), a		
 	pop		a
 	ret
 
@@ -130,7 +130,7 @@ START_FRAME:
     ld		b, 4
 START_FRAME1:
     ld		a, 0x00
-    call	SEND_BYTE
+    call	SEND_BYTE		; send 4 empty bytes
     djnz	START_FRAME1
 	pop		a
 	pop		b

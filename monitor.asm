@@ -17,12 +17,15 @@ CLRS		equ	0x0C
 SER_BUFSIZE		equ	0x40
 SER_FULLSIZE	equ	0x30
 SER_EMPTYSIZE	equ	5
-SERBUF_START	equ	0x2000
+SERBUF_START	equ	0x2000	; Place serial buffer at the top of RAM
 
 loadAddr	equ	0xD000	; CP/M load address
 numSecs		equ	24		; Number of 512 sectors to be loaded
 
 
+;------------------------------------------------------------------------------
+; Variables in RAM
+;------------------------------------------------------------------------------
 			org	SERBUF_START
 serBuf		ds	SER_BUFSIZE
 serInPtr	ds	2
@@ -484,6 +487,7 @@ about_txt:
 	defm	CR,LF
 	defm	"Created for DEF CON 31. More information at: https://heavy.uberfoo.net/z80rb",CR,LF
 	defm	CR,LF
+	defm	"Special thanks to madamorr and flux.",CR,LF,0
                                                                             
 no_match_message:	defm	"? ",0
 help_message:		defm	"Commands implemented:",CR,LF,0
