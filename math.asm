@@ -25,7 +25,6 @@ INIT_RND:
 ; Registers:
 ;   a, de, hl
 ; ----------------------------------------------------
-
 RAND:   
         ld  hl,(rndSeed1)   ; yw -> zt
         ld  de,(rndSeed2)   ; xz -> yw
@@ -63,7 +62,7 @@ RAND:
 ;   a, b, d, e
 ; ----------------------------------------------------
 DIV_D_E:
-        xor	a
+        xor	a       ; 0 out a
         ld	b,8
 
 div_loop:
@@ -75,25 +74,7 @@ div_loop:
         inc	d  
         djnz	div_loop
 
-   ret
-
-MUL:    ; 16-bit unsigned integer multiplication routine
-        ; Inputs: HL = 16-bit unsigned multiplicand
-        ;         E  = 8-bit unsigned multiplier
-        ; Outputs: HL = 16-bit unsigned product
-        ; Registers used: AF, BC, DE
-        LD A, E
-        LD B, H
-        LD C, L
-        LD HL, 0
-mul_loop:
-        AND $01
-        JR  Z,mul_next
-        ADD HL, BC
-mul_next:
-        ADD HL, HL
-        DJNZ mul_loop
-        RET
+        ret
 
 ; ----------------------------------------------------
 ; XOR encrypts or decrypts a string using a 16-bit key

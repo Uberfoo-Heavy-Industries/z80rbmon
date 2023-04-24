@@ -244,18 +244,18 @@ run_jump:
 help_jump:
 	ld		hl, help_message
 	call	write_string
-	ld		bc, parse_table		;table with pointers to command strings
-	ld		d,12
+	ld		bc, parse_table		; table with pointers to command strings
+	ld		d,12				; only iterate through the first 11 commands
 help_loop:
 	ld		a, (bc)			;displays the strings for matching commands,
 	ld		l, a			;getting the string addresses from the
-	inc		bc			;parse table
+	inc		bc				;parse table
 	ld		a, (bc)			;pass address of string to hl through a reg
 	ld		h, a
 	dec		d				; exit after we reach the last listed command
 	jp		z, help_done
 	push	hl
-	push	bc			;write_char uses b register
+	push	bc				;write_char uses b register
 	push	d
 	ld		d,h
 	ld		e,l
@@ -265,9 +265,9 @@ help_loop:
 	call	write_char
 	pop		bc
 	ld		hl,decryptBuf
-	call	write_string		;writes match string
+	call	write_string	;writes match string
 	pop		hl
-	inc		bc			;pass over jump address in table
+	inc		bc				;pass over jump address in table
 	inc		bc
 	inc		bc
 	jp		help_loop
