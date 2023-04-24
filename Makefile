@@ -5,6 +5,8 @@ ROM_SRCS := $(filter-out cbios128.asm version.asm, $(wildcard *.asm))
 
 all: z80rbmon.hex cpmboot.img
 
+cbios128.asm:
+
 ROM_SRCS:
 
 version.asm: 

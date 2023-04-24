@@ -39,6 +39,7 @@ dmaAddr		ds	2
 rndSeed1	ds	2
 rndSeed2	ds	2
 
+decryptBuf  ds  255
 stackSpace	ds	255
 STACK		equ	$
 
@@ -85,6 +86,11 @@ MON_INIT:
 	ld   	hl, INITTXT
 	call 	write_string
 
+	ld		de,secret_txt
+	call	ENCRYPT
+	ld		hl,decryptBuf
+	call	write_string
+	
 	call 	LED_RED
 	call 	INIT_RND
 
@@ -169,6 +175,8 @@ monitor_warm_start:
 ;Parses an input line stored in buffer for available commands as described in parse table.
 ;Returns with address of jump to action for the command in hl
 parse:			
+	ld		de,buffer
+	call	ENCRYPT
 	ld		bc,parse_table		;bc is pointer to parse_table
 parse_start:
 	ld		a, (bc)			;get pointer to match string from parse table
@@ -179,7 +187,7 @@ parse_start:
 	ld		a, (de)			;get first char from match string
 	or		0x00			;zero?
 	jp		z, parser_exit		;yes, exit no_match
-	ld		hl, buffer		;no, parse input string 
+	ld		hl, decryptBuf		;no, parse input string 
 match_loop:
 	cp		(hl)			;compare buffer char with match string char
 	jp		nz,no_match		;no match, go to next match string
@@ -242,26 +250,35 @@ help_jump:
 	ld		hl, help_message
 	call	write_string
 	ld		bc, parse_table		;table with pointers to command strings
+	ld		d,12
 help_loop:
 	ld		a, (bc)			;displays the strings for matching commands,
 	ld		l, a			;getting the string addresses from the
 	inc		bc			;parse table
 	ld		a, (bc)			;pass address of string to hl through a reg
 	ld		h, a
-	ld		a, (hl)			;hl now points to start of match string
-	or		000h			;exit if no_match string
+	dec		d				; exit after we reach the last listed command
 	jp		z, help_done
+	push	hl
 	push	bc			;write_char uses b register
+	push	d
+	ld		d,h
+	ld		e,l
+	call	ENCRYPT
+	pop		d
 	ld		a, 0x20			;space char
 	call	write_char
 	pop		bc
+	ld		hl,decryptBuf
 	call	write_string		;writes match string
+	pop		hl
 	inc		bc			;pass over jump address in table
 	inc		bc
 	inc		bc
 	jp		help_loop
 help_done:
 	jp		monitor_warm_start
+
 ;Disk read. Need memory address to place data, LBA of sector to read
 diskrd_jump:
 	ld		hl, diskrd_message
@@ -416,8 +433,18 @@ about_jump:
 
 	jp		monitor_warm_start
 
+xyzzy_jump:
+	ld		de,secret_txt
+	call	ENCRYPT
+	ld		hl,decryptBuf
+	call	write_string
+	call	write_newline
+	call	write_newline
+
+	jp		monitor_warm_start
+
 	INCLUDE "led.asm"
-	INCLUDE "random.asm"
+	INCLUDE "math.asm"
 	INCLUDE "sio.asm"
 	INCLUDE "stdout.asm"
 	INCLUDE "cf_card.asm"
@@ -488,7 +515,16 @@ about_txt:
 	defm	"Created for DEF CON 31. More information at: https://heavy.uberfoo.net/z80rb",CR,LF
 	defm	CR,LF
 	defm	"Special thanks to madamorr and flux.",CR,LF,0
-                                                                            
+	defm    "flag{iFd1zlNrldH2By8JEQLVTOzD}",CR,LF,0
+
+secret_txt:
+	defm 0x4D, 0x75, 0x51, 0x71, 0x1F, 0x2E, 0x0A, 0x69, 0x40, 0x60, 0x53, 0x78
+	defm 0x0B, 0x74, 0x47, 0x64, 0x57, 0x67, 0x4A, 0x6E, 0x0B, 0x6F, 0x40, 0x75
+	defm 0x0A, 0x7B, 0x1D, 0x31, 0x57, 0x63, 0x0A, 0x67, 0x49, 0x60, 0x42, 0x2E
+	defm 0x40, 0x42, 0x49, 0x46, 0x67, 0x67, 0x4C, 0x59, 0x43, 0x53, 0x68, 0x68
+	defm 0x6C, 0x32, 0x67, 0x43, 0x1C, 0x4E, 0x73, 0x66, 0x4F, 0x67, 0x17, 0x55
+	defm 0
+
 no_match_message:	defm	"? ",0
 help_message:		defm	"Commands implemented:",CR,LF,0
 dump_message:		defm	"Displays a 256-byte block of memory.",CR,LF,0
@@ -498,17 +534,18 @@ diskrd_message:		defm	"Reads one sector from disk to memory.",CR,LF,0
 diskwr_message:		defm	"Writes one sector from memory to disk.",CR,LF,0
 
 ;Strings for matching:
-dump_string:		defm	"dump",0
-jump_string:		defm	"jump",0
-run_string:			defm	"run",0
-question_string:	defm	"?",0
-help_string:		defm	"help",0
-diskrd_string:		defm	"diskrd",0
-diskwr_string:		defm	"diskwr",0
-cpm_string:			defm	"cpm",0
-boot_string:		defm	"boot",0
-led_string:			defm	"led",0
-about_string:		defm	"about",0
+dump_string:		defm	"AtHq",0
+jump_string:		defm	"OtHq",0
+run_string:			defm	"WtK",0
+question_string:	defm	0x1A,0
+help_string:		defm	"MdIq",0
+diskrd_string:		defm	"AhVjWe",0
+diskwr_string:		defm	"AhVjRs",0
+cpm_string:			defm	"FqH",0
+boot_string:		defm	"GnJu",0
+led_string:			defm	"IdA",0
+about_string:		defm	"DcJtQ",0
+xyzzy_string:		defm	"]x_{\",0
 no_match_string:	defm	0,0
 
 ;Table for matching strings to jumps
@@ -518,9 +555,11 @@ parse_table:	defw	dump_string,dump_jump
 				defw	diskrd_string,diskrd_jump,diskwr_string,diskwr_jump
 				defw	cpm_string,cpm_jump,boot_string,boot_jump
 				defw	led_string,led_jump,about_string,about_jump
-				defw    no_match_string,no_match_jump
+				defw    xyzzy_string,xyzzy_jump,no_match_string,no_match_jump
 
 ;------------------------------------------------------------------------------
+
+
 
 FINIS:		.end	
 
