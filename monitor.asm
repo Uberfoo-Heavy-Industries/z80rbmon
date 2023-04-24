@@ -86,11 +86,6 @@ MON_INIT:
 	ld   	hl, INITTXT
 	call 	write_string
 
-	ld		de,secret_txt
-	call	ENCRYPT
-	ld		hl,decryptBuf
-	call	write_string
-	
 	call 	LED_RED
 	call 	INIT_RND
 
