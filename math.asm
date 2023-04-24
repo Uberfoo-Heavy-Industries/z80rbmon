@@ -69,7 +69,7 @@ div_loop:
         sla	d
         rla
         cp	e
-        ret	c       ; Return on carry flag
+        jr	c, $+4
         sub	e
         inc	d  
         djnz	div_loop
@@ -87,7 +87,7 @@ div_loop:
 ; ----------------------------------------------------
 
 ENCRYPT:
-        ld bc,KEY_WORD
+        ld bc,KEY_WORD     ; Load the 16bit key into bc
         ld hl,decryptBuf   ; Copy decrpyt buffer address to hl
 
 enc_loop:
@@ -95,18 +95,18 @@ enc_loop:
         or a            ; Test if a is zero (end of string)
         jr z,enc_end    ; Jump to end if end of string reached
         xor b           ; XOR the high byte of the key with a
-        ld (hl),a       ; Store the encrypted/decrypted character back in the string
+        ld (hl),a       ; Store the encrypted/decrypted character in buffer
         inc hl          ; Increment hl to point to the next byte of the buffer
         inc de          ; Increment de to point to the next ciphertext byte
-        ld a,(de)
+        ld a,(de)       ; Load the next character of the string into a
         or a            ; Test if a is zero (end of string)
         jr z,enc_end    ; Jump to end if end of string reached
         xor c           ; XOR the low byte of the key with a
-        ld (hl),a
+        ld (hl),a       ; Store the encrypted/decrypted character in buffer
         inc hl          ; Increment hl to point to the next byte of the buffer
         inc de          ; Increment de to point to the next ciphertext byte
         jr enc_loop     ; Loop
 
 enc_end:
-        ld (hl),0x00
+        ld (hl),0x00    ; Terminate string with NULL character
         ret
