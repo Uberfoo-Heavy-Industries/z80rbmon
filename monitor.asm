@@ -299,14 +299,12 @@ diskrd_jump:
 	call	address_entry
 	jp		z,monitor_warm_start	; jump to start if CTRL-C
 	call	write_newline
-	push	hl
+	push	hl						; save memory address
 	ld		hl, LBA_entry_string
 	call	write_string
 	call	decimal_entry
 	jp		z,monitor_warm_start	; jump to start if CTRL-C
-	ld		b,h
-	ld		c,l
-	push	bc
+	push	hl						; save block number
 	call	write_newline
 	ld		hl,read_blks_prompt
 	call	write_string
@@ -315,8 +313,8 @@ diskrd_jump:
 	call	write_newline
 	ld		d,h						; load num of blocks into de
 	ld		e,l
-	pop		bc
-	pop		hl
+	pop		bc						; restore block number
+	pop		hl						; restore memory address
 diskrd_loop:
 	push	hl						; save memory address
 	push	bc						; save block number
@@ -342,14 +340,13 @@ diskwr_jump:
 	call	address_entry
 	jp		z,monitor_warm_start	; jump to start if CTRL-C
 	call	write_newline
-	push	hl
+	push	hl						; save memory address
 	ld		hl, LBA_entry_string
 	call	write_string
 	call	decimal_entry
 	jp		z,monitor_warm_start	; jump to start if CTRL-C
-	ld		b,h
-	ld		c,l
-	push	bc
+	push	hl						; Save block number
+	call	write_newline
 	ld		hl,read_blks_prompt
 	call	write_string
 	call	decimal_entry
@@ -357,7 +354,7 @@ diskwr_jump:
 	call	write_newline
 	ld		d,h						; load num of blocks into de
 	ld		e,l
-	pop		bc
+	pop		bc						; restore block number
 	pop		hl						; restore memory address
 diskwr_loop:
 	push	hl						; save memory address
