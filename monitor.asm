@@ -154,16 +154,19 @@ monitor_cold_start:
 	
 	ei                      ; enable interrupts
 
-monitor_warm_start:
+monitor_warm_start:			;routine program return here to avoid re-initialization of port
 	call	LED_GREEN
 	
-	call	write_newline	;routine program return here to avoid re-initialization of port
+	call	write_newline	
 	ld		a,03eh			;cursor symbol
 	call	write_char
 	ld		hl,buffer
 	call	rts_on
 	call	get_line		;get monitor input string (command)
 	call	write_newline
+	ld		a,(buffer)
+	cp		CTRLC
+	jp		z,monitor_warm_start
 	call	parse			;interprets command, returns with address to jump to in hl
 	jp		(hl)
 ;
@@ -215,6 +218,9 @@ dump_jump:
 	ld		hl, address_entry_msg	;get ready to get address
 	call	write_string
 	call	address_entry		;returns with address in hl
+	ld		a,(hl)
+	cp		CTRLC
+	jp		z,monitor_warm_start
 	call	write_newline
 	call	memory_dump
 	jp		monitor_warm_start
@@ -226,6 +232,9 @@ load_jump:
 	ld		hl, address_entry_msg	;get ready to get address
 	call	write_string
 	call	address_entry
+	ld		a,(hl)
+	cp		CTRLC
+	jp		z,monitor_warm_start
 	call	write_newline
 	call	memory_load
 	jp		monitor_warm_start
@@ -238,6 +247,9 @@ run_jump:
 	ld		hl, address_entry_msg	;get ready to get address
 	call	write_string
 	call	address_entry
+	ld		a,(hl)
+	cp		CTRLC
+	jp		z,monitor_warm_start
 	jp		(hl)
 ;
 ;Help and ? do the same thing, display the available commands
@@ -281,11 +293,17 @@ diskrd_jump:
 	ld		hl, address_entry_msg
 	call	write_string
 	call	address_entry
+	ld		a,(hl)
+	cp		CTRLC
+	jp		z,monitor_warm_start
 	call	write_newline
 	push	hl
 	ld		hl, LBA_entry_string
 	call	write_string
 	call	decimal_entry
+	ld		a,(hl)
+	cp		CTRLC
+	ret		z
 	ld		b,h
 	ld		c,l
 	ld		e, 0x00
@@ -298,11 +316,17 @@ diskwr_jump:
 	ld		hl, address_entry_msg
 	call	write_string
 	call	address_entry
+	ld		a,(hl)
+	cp		CTRLC
+	jp		z,monitor_warm_start
 	call	write_newline
 	push	hl
 	ld		hl, LBA_entry_string
 	call	write_string
 	call	decimal_entry
+	ld		a,(hl)
+	cp		CTRLC
+	ret		z
 	ld		b, h
 	ld		c, l
 	ld		e, 0x00

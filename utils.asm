@@ -14,6 +14,7 @@ buffer				equ		0xdb08		;buffer in RAM -- up to stack area
 ;Backspace editing OK. No error checking.
 ;
 get_line:
+	push	hl
 	ld		c, 0x00	;line position
 	ld		a, h	;put original buffer address in de
 	ld		d, a	;after this don't need to preserve hl
@@ -22,11 +23,13 @@ get_line:
 get_line_next_char:			
 	call 	rx
 	cp		00dh		;check if return
-	ret		z			;yes, normal exit
+	jp		z, get_line_end		;yes, normal exit
 	cp		07fh		;check if backspace (VT102 keys)
 	jp		z, get_line_backspace	;yes, jump to backspace routine
 	cp		008h		;check if backspace (ANSI keys)
 	jp		z, get_line_backspace	;yes, jump to backspace
+	cp		CTRLC		;check if CTRL-C
+	jp		z, get_line_ctrlc
 	call	write_char	;put char on screen
 	ld		(de), a		;store char in buffer
 	inc		de			;point to next space in buffer
@@ -45,6 +48,15 @@ get_line_backspace:
 	ld		hl, erase_char_string	;ANSI sequence to delete one char from line
 	call	write_string		;transmits sequence to backspace and erase char
 	jp		get_line_next_char
+get_line_ctrlc:
+	pop		de		;put saved hl into de
+	ld		a,CTRLC
+	ld		(de),a	 ;put a CTRL-C at the beginning of the string
+	ret
+get_line_end:
+	pop		hl
+	ret
+
 ;
 ;Creates a two-char hex string from the byte value passed in register a
 ;Location to place string passed in hl
@@ -136,6 +148,9 @@ hex_char_table:		defm	"0123456789ABCDEF"	;ASCII hex table
 ;Uses locations in RAM for buffer and variables
 address_entry:		ld	hl,buffer		;location for entered string
 			call	get_line		;returns with address string in buffer
+			ld 	a,(buffer)
+			cp	CTRLC
+			ret	z
 			ld	hl,buffer		;location of stored address entry string
 			call	hex_to_byte		;will get high-order byte first
 			jp	c, address_entry_error	;if error, jump
@@ -154,6 +169,9 @@ address_entry_error:	ld	hl,address_error_msg
 ;Calls decimal_string_to_word subroutine
 decimal_entry:		ld	hl,buffer
 			call	get_line		;returns with DE pointing to terminating zero
+			ld 	a,(buffer)
+			cp	CTRLC
+			ret	z
 			ld	hl,buffer
 			call	decimal_string_to_word
 			ret	nc			;no error, return with word in hl
@@ -336,7 +354,7 @@ dump_entry_string:	defm	"Enter no. of bytes to dump (decimal): ",0
 LBA_entry_string:	defm	"Enter LBA (decimal, 0 to 65535): ",0
 erase_char_string:	defm	008h,01bh,"[K",000h	;ANSI sequence for backspace, erase to end of line.
 address_entry_msg:	defm	"Enter 4-digit hex address (use upper-case A through F): ",0
-address_error_msg:	defm	"\r\nError: invalid hex character, try again: ",0
-data_entry_msg:		defm	"Enter hex bytes, hit return when finished.\r\n",0
-data_error_msg:		defm	"Error: invalid hex byte.\r\n",0
-decimal_error_msg:	defm	"\r\nError: invalid decimal number, try again: ",0
+address_error_msg:	defm	CR,LF,"Error: invalid hex character, try again: ",0
+data_entry_msg:		defm	"Enter hex bytes, hit return when finished.",CR,LF,0
+data_error_msg:		defm	"Error: invalid hex byte.",CR,LF,0
+decimal_error_msg:	defm	CR,LF,"Error: invalid decimal number, try again: ",0
