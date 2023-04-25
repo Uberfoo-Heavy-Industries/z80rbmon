@@ -242,18 +242,7 @@ dump_loop:
 	jp		nz,dump_loop			; loop if not 0
 	call	write_newline
 	jp		monitor_warm_start
-;
-;Hex loader, displays formatted input
-load_jump:
-	ld		hl, load_message		;Display greeting
-	call	write_string		;get address to load
-	ld		hl, address_entry_msg	;get ready to get address
-	call	write_string
-	call	address_entry
-	jp		z,monitor_warm_start	; jump to start if CTRL-C
-	call	write_newline
-	call	memory_load
-	jp		monitor_warm_start
+
 ;
 ;
 ;Jump and run do the same thing: get an address and jump to it.
@@ -265,6 +254,7 @@ run_jump:
 	call	address_entry
 	jp		z,monitor_warm_start	; jump to start if CTRL-C
 	jp		(hl)
+
 ;
 ;Help and ? do the same thing, display the available commands
 help_jump:
@@ -313,13 +303,37 @@ diskrd_jump:
 	ld		hl, LBA_entry_string
 	call	write_string
 	call	decimal_entry
-	ret		z
+	jp		z,monitor_warm_start	; jump to start if CTRL-C
 	ld		b,h
 	ld		c,l
-	ld		e, 0x00
+	push	bc
+	call	write_newline
+	ld		hl,read_blks_prompt
+	call	write_string
+	call	decimal_entry
+	jp		z,monitor_warm_start	; jump to start if CTRL-C
+	call	write_newline
+	ld		d,h						; load num of blocks into de
+	ld		e,l
+	pop		bc
 	pop		hl
+diskrd_loop:
+	push	hl						; save memory address
+	push	bc						; save block number
 	call	disk_read
+	pop		bc						; restore block number
+	pop		hl						; restore memory address
+	inc		bc						; increment block number
+	push	de						; save loop count
+	ld		de,CFBLKSZ				; prepare to add block size
+	add		hl,de					; add block size to mem pointer
+	pop		de						; restore loop count
+	dec		de						; decrement loop count
+	ld		a,d
+	or		e						; check if de is 0
+	jp		nz,diskrd_loop			; loop if not
 	jp		monitor_warm_start
+
 diskwr_jump:
 	ld		hl, diskwr_message
 	call	write_string
@@ -332,13 +346,37 @@ diskwr_jump:
 	ld		hl, LBA_entry_string
 	call	write_string
 	call	decimal_entry
-	ret		z
-	ld		b, h
-	ld		c, l
-	ld		e, 0x00
-	pop		hl
+	jp		z,monitor_warm_start	; jump to start if CTRL-C
+	ld		b,h
+	ld		c,l
+	push	bc
+	ld		hl,read_blks_prompt
+	call	write_string
+	call	decimal_entry
+	jp		z,monitor_warm_start	; jump to start if CTRL-C
+	call	write_newline
+	ld		d,h						; load num of blocks into de
+	ld		e,l
+	pop		bc
+	pop		hl						; restore memory address
+diskwr_loop:
+	push	hl						; save memory address
+	push	bc						; save block number
 	call	disk_write
+	pop		bc						; restore block number
+	pop		hl						; restore memory address
+	inc		bc						; increment block number
+	push	de						; save loop count
+	ld		de,CFBLKSZ				; prepare to add block size
+	add		hl,de					; add block size to mem pointer
+	pop		de						; restore loop count
+	dec		de						; decrement loop count
+	ld		a,d
+	or		e						; check if de is 0
+	jp		nz,diskwr_loop			; loop if not
 	jp		monitor_warm_start
+
+	
 ;Prints message for no match to entered command
 no_match_jump:
 	ld		hl, no_match_message
@@ -554,10 +592,11 @@ no_match_message:	defm	"? ",0
 help_message:		defm	"Commands implemented:",CR,LF,0
 dump_message:		defm	"Displays blocks of memory.",CR,LF,0
 dump_blks_prompt:	defm	"Enter number of 256-byte blocks to dump: ",0
-load_message:		defm	"Enter hex bytes starting at memory location.",CR,LF,0
+read_blks_prompt:	defm	"Enter number of sectors to read: ",0
+write_blks_prompt:	defm	"Enter number of sectors to write: ",0
 run_message:		defm	"Will jump to (execute) program at address entered.",CR,LF,0
-diskrd_message:		defm	"Reads one sector from disk to memory.",CR,LF,0
-diskwr_message:		defm	"Writes one sector from memory to disk.",CR,LF,0
+diskrd_message:		defm	"Reads one or more sectors from disk to memory.",CR,LF,0
+diskwr_message:		defm	"Writes one or more sectors from memory to disk.",CR,LF,0
 
 ;Strings for matching:
 dump_string:		defm	"AtHq",0

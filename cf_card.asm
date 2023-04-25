@@ -1,5 +1,7 @@
+;***************************************************************************
 ;The addresses that the CF Card resides in I/O space.
 ;Change to suit hardware.
+;***************************************************************************
 CFDATA				equ		CFBASE + $00		; Data (R/W)
 CFERR				equ		CFBASE + $01		; Error register (R)
 CFFEAT				equ		CFBASE + $01		; Features (W)
@@ -11,42 +13,45 @@ CFLBA3				equ		CFBASE + $06		; LBA bits 24-27 (R/W, LBA mode)
 CFSTAT				equ		CFBASE + $07		; Status (R)
 CFCMD				equ		CFBASE + $07		; Command (W)	
 
+CFBLKSZ				equ		0x0200				; Standard block size
+
 ;***************************************************************************
-;CF_INIT
-;Function: Initialize CF to 8 bit data transfer mode
+; CF_INIT
+; Function: Initialize CF to 8 bit data transfer mode
 ;***************************************************************************	
 CF_INIT:
 	call	cfWait
-	ld		a, 0x04						;ld features register to enable 8 bit
+	ld		a, 0x04		;ld features register to enable 8 bit
 	out		(CFCMD), a
 	call	cfWait
-	ld		a, 0x01						;ld features register to enable 8 bit
+	ld		a, 0x01		;ld features register to enable 8 bit
 	out		(CFFEAT), a
 	call	cfWait
-	ld		a, 0xEF						;Send set features command
+	ld		a, 0xEF		;Send set features command
 	out		(CFCMD), a
 	call	cfWait
 	ret
 
 ;***************************************************************************
-;cfWait
-;Function: Loops until status register bit 7 (busy) is 0
+; cfWait
+; Function: Loops until status register bit 7 (busy) is 0
 ;***************************************************************************	
 cfWait:
 		push 	af
 cfWait1:
 		in 		a,(CFSTAT)	; Read status address
-		and 	0x80			; Mask for busy bit
-		cp 		0x80			; Compare busy bit
-		jr		z,cfWait1		; Loop if still busy
+		and 	0x80		; Mask for busy bit
+		cp 		0x80		; Compare busy bit
+		jr		z,cfWait1	; Loop if still busy
 		pop 	af
 		ret
 
-;
-;Subroutine to read one disk sector (512 bytes)
-;Address to place data passed in hl
-;LBA bits 0 to 7 passed in c, bits 8 to 15 passed in B
-;LBA bits 16 to 23 passed in E
+;***************************************************************************
+; Subroutine to read one disk sector (512 bytes)
+; Address to place data passed in hl
+; LBA bits 0 to 7 passed in c, bits 8 to 15 passed in B
+; Registers: a, bc, hl
+;***************************************************************************
 disk_read:
 rd_status_loop_1:
 	in		a, (CFSTAT)		;check status
@@ -62,7 +67,7 @@ rd_status_loop_2:
 	out		(CFLBA0), a		;lba bits 0 - 7
 	ld		a, b
 	out		(CFLBA1), a		;lba bits 8 - 15
-	ld		a, e
+	ld		a, 0x00
 	out		(CFLBA2), a		;lba bits 16 - 23
 	ld		a, 11100000b	;LBA mode, select drive 0
 	out		(CFLBA3), a		;drive/head register
@@ -85,11 +90,13 @@ read_loop:
 	and		0x08			;DRQ bit
 	jp		nz, read_loop	;loop until cleared
 	ret
-;
-;Subroutine to write one disk sector (256 bytes)
-;Address of data to write to disk passed in hl
-;LBA bits 0 to 7 passed in c, bits 8 to 15 passed in B
-;LBA bits 16 to 23 passed in E
+
+;***************************************************************************
+; Subroutine to write one disk sector (256 bytes)
+; Address of data to write to disk passed in hl
+; LBA bits 0 to 7 passed in c, bits 8 to 15 passed in b
+; Registers: a, bc, hl
+;***************************************************************************
 disk_write:
 wr_status_loop_1:
 	in		a, (CFSTAT)		;check status
@@ -105,7 +112,7 @@ wr_status_loop_2:
 	out		(CFLBA0), a		;lba bits 0 - 7
 	ld		a, b
 	out		(CFLBA1), a		;lba bits 8 - 15
-	ld		a, e
+	ld		a, 0x00
 	out		(CFLBA2), a		;lba bits 16 - 23
 	ld		a, 11100000b	;LBA mode, select drive 0
 	out		(CFLBA3), a		;drive/head register
