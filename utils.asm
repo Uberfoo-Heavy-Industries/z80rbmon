@@ -160,6 +160,7 @@ address_entry:		ld	hl,buffer		;location for entered string
 			jp	c, address_entry_error	;jump if error
 			ld	(current_location),a	;store low-order byte in lower memory
 			ld	hl,(current_location)	;put memory address in hl
+			or	1 	; clear zero flag to indicate no CTRL-C
 			ret
 address_entry_error:	ld	hl,address_error_msg
 			call	write_string
@@ -174,6 +175,7 @@ decimal_entry:		ld	hl,buffer
 			ret	z
 			ld	hl,buffer
 			call	decimal_string_to_word
+			or	1 	; clear zero flag to indicate no CTRL-C
 			ret	nc			;no error, return with word in hl
 			ld	hl,decimal_error_msg	;error, try again
 			call	write_string

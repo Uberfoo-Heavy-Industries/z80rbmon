@@ -213,16 +213,34 @@ parser_exit:
 ;Input 4-digit hexadecimal address
 ;Calls memory_dump subroutine
 dump_jump:
-	ld		hl, dump_message		;Display greeting
+	ld		hl, dump_message		; Display greeting
 	call	write_string
-	ld		hl, address_entry_msg	;get ready to get address
+	ld		hl, address_entry_msg	; get ready to get address
 	call	write_string
-	call	address_entry		;returns with address in hl
-	ld		a,(hl)
-	cp		CTRLC
-	jp		z,monitor_warm_start
+	call	address_entry			; returns with address in hl
 	call	write_newline
+	jp		z,monitor_warm_start	; jump to start if CTRL-C
+	push	hl						; save address entry
+	ld		hl,dump_blks_prompt
+	call	write_string
+	call	decimal_entry
+	jp		z,monitor_warm_start	; jump to start if CTRL-C
+	ld		b,h						; load num of blocks into bc
+	ld		c,l
+	pop		hl						; pop address off stack
+dump_loop:
+	push	bc						; save block counter
+	push	hl						; save address again
 	call	memory_dump
+	ld		de,0x00FF				; prepare to add to hl
+	pop		hl						; pop address off stack
+	add		hl,de					; add 256 to hl
+	pop		bc						; pop block counter off stack
+	dec		bc						; decrement loop counter
+	ld		a, b
+	or		c						; check if bc == 0
+	jp		nz,dump_loop			; loop if not 0
+	call	write_newline
 	jp		monitor_warm_start
 ;
 ;Hex loader, displays formatted input
@@ -232,9 +250,7 @@ load_jump:
 	ld		hl, address_entry_msg	;get ready to get address
 	call	write_string
 	call	address_entry
-	ld		a,(hl)
-	cp		CTRLC
-	jp		z,monitor_warm_start
+	jp		z,monitor_warm_start	; jump to start if CTRL-C
 	call	write_newline
 	call	memory_load
 	jp		monitor_warm_start
@@ -247,9 +263,7 @@ run_jump:
 	ld		hl, address_entry_msg	;get ready to get address
 	call	write_string
 	call	address_entry
-	ld		a,(hl)
-	cp		CTRLC
-	jp		z,monitor_warm_start
+	jp		z,monitor_warm_start	; jump to start if CTRL-C
 	jp		(hl)
 ;
 ;Help and ? do the same thing, display the available commands
@@ -293,16 +307,12 @@ diskrd_jump:
 	ld		hl, address_entry_msg
 	call	write_string
 	call	address_entry
-	ld		a,(hl)
-	cp		CTRLC
-	jp		z,monitor_warm_start
+	jp		z,monitor_warm_start	; jump to start if CTRL-C
 	call	write_newline
 	push	hl
 	ld		hl, LBA_entry_string
 	call	write_string
 	call	decimal_entry
-	ld		a,(hl)
-	cp		CTRLC
 	ret		z
 	ld		b,h
 	ld		c,l
@@ -316,16 +326,12 @@ diskwr_jump:
 	ld		hl, address_entry_msg
 	call	write_string
 	call	address_entry
-	ld		a,(hl)
-	cp		CTRLC
-	jp		z,monitor_warm_start
+	jp		z,monitor_warm_start	; jump to start if CTRL-C
 	call	write_newline
 	push	hl
 	ld		hl, LBA_entry_string
 	call	write_string
 	call	decimal_entry
-	ld		a,(hl)
-	cp		CTRLC
 	ret		z
 	ld		b, h
 	ld		c, l
@@ -546,7 +552,8 @@ secret_txt:
 
 no_match_message:	defm	"? ",0
 help_message:		defm	"Commands implemented:",CR,LF,0
-dump_message:		defm	"Displays a 256-byte block of memory.",CR,LF,0
+dump_message:		defm	"Displays blocks of memory.",CR,LF,0
+dump_blks_prompt:	defm	"Enter number of 256-byte blocks to dump: ",0
 load_message:		defm	"Enter hex bytes starting at memory location.",CR,LF,0
 run_message:		defm	"Will jump to (execute) program at address entered.",CR,LF,0
 diskrd_message:		defm	"Reads one sector from disk to memory.",CR,LF,0
