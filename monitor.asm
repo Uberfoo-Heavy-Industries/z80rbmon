@@ -232,7 +232,7 @@ dump_loop:
 	push	bc						; save block counter
 	push	hl						; save address again
 	call	memory_dump
-	ld		de,0x00FF				; prepare to add to hl
+	ld		de,0x0100				; prepare to add to hl
 	pop		hl						; pop address off stack
 	add		hl,de					; add 256 to hl
 	pop		bc						; pop block counter off stack
