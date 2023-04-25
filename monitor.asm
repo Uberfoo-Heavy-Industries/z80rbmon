@@ -347,7 +347,7 @@ diskwr_jump:
 	jp		z,monitor_warm_start	; jump to start if CTRL-C
 	push	hl						; Save block number
 	call	write_newline
-	ld		hl,read_blks_prompt
+	ld		hl,write_blks_prompt
 	call	write_string
 	call	decimal_entry
 	jp		z,monitor_warm_start	; jump to start if CTRL-C
