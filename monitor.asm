@@ -90,7 +90,7 @@ MON_INIT:
 	call 	INIT_RND
 
 	xor		a		; 0 to accumulator
-	ld		I,a     ; set high byte of interrupt vectors to point to page 0
+	ld		i,a     ; set high byte of interrupt vectors to point to page 0
 	im		2       ; interrupt mode 2
 	ei
 
@@ -196,7 +196,9 @@ match_loop:
 	inc		hl			;and point to next char in input string
 	jp		match_loop		;check for match
 no_match:
-	inc		bc			;skip over jump target to
+	inc		bc			;skip over jump target and help to
+	inc		bc
+	inc		bc
 	inc		bc
 	inc		bc			;get address of next matching string
 	jp		parse_start
@@ -213,8 +215,6 @@ parser_exit:
 ;Input 4-digit hexadecimal address
 ;Calls memory_dump subroutine
 dump_jump:
-	ld		hl, dump_message		; Display greeting
-	call	write_string
 	ld		hl, address_entry_msg	; get ready to get address
 	call	write_string
 	call	address_entry			; returns with address in hl
@@ -247,12 +247,12 @@ dump_loop:
 ;
 ;Jump and run do the same thing: get an address and jump to it.
 run_jump:
-	ld		hl, run_message		;Display greeting
-	call	write_string
 	ld		hl, address_entry_msg	;get ready to get address
 	call	write_string
 	call	address_entry
 	jp		z,monitor_warm_start	; jump to start if CTRL-C
+	ld		a, 0
+	push	af
 	jp		(hl)
 
 ;
@@ -263,28 +263,40 @@ help_jump:
 	ld		bc, parse_table		; table with pointers to command strings
 	ld		d,12				; only iterate through the first 11 commands
 help_loop:
-	ld		a, (bc)			;displays the strings for matching commands,
-	ld		l, a			;getting the string addresses from the
-	inc		bc				;parse table
-	ld		a, (bc)			;pass address of string to hl through a reg
+	ld		a, (bc)			; displays the strings for matching commands,
+	ld		l, a			; getting the string addresses from the
+	inc		bc				; parse table
+	ld		a, (bc)			; pass address of string to hl through a reg
 	ld		h, a
 	dec		d				; exit after we reach the last listed command
 	jp		z, help_done
 	push	hl
-	push	bc				;write_char uses b register
+	push	bc				; write_char uses b register
 	push	d
 	ld		d,h
 	ld		e,l
 	call	ENCRYPT
 	pop		d
-	ld		a, 0x20			;space char
+	ld		a, 0x20			; space char
+	call	write_char
 	call	write_char
 	pop		bc
 	ld		hl,decryptBuf
-	call	write_string	;writes match string
+	call	write_string	; writes match string
+	ld		a,':'			; colon char
+	call	write_char
+	call	write_newline
 	pop		hl
-	inc		bc				;pass over jump address in table
+	inc		bc				; pass over jump address in table
 	inc		bc
+	inc		bc
+	ld		a, (bc)			; displays the strings for matching commands,
+	ld		l, a			; getting the help string addresses from the
+	inc		bc				; parse table
+	ld		a, (bc)			; pass address of string to hl through a reg
+	ld		h, a
+	call	write_string	; writes help string
+	call	write_newline	; extra blank line
 	inc		bc
 	jp		help_loop
 help_done:
@@ -292,8 +304,6 @@ help_done:
 
 ;Disk read. Need memory address to place data, LBA of sector to read
 diskrd_jump:
-	ld		hl, diskrd_message
-	call	write_string
 	ld		hl, address_entry_msg
 	call	write_string
 	call	address_entry
@@ -333,8 +343,6 @@ diskrd_loop:
 	jp		monitor_warm_start
 
 diskwr_jump:
-	ld		hl, diskwr_message
-	call	write_string
 	ld		hl, address_entry_msg
 	call	write_string
 	call	address_entry
@@ -383,7 +391,7 @@ no_match_jump:
 	jp		monitor_warm_start
 
 ;------------------------------------------------------------------------------
-; CP/M load command
+; Boot command
 ;------------------------------------------------------------------------------
 boot_jump:
 	ld		hl, BOOTTXT
@@ -450,7 +458,7 @@ processSectors:
 	call	disk_read
 	pop		b
 
-	ld		de, 0x0200
+	ld		de, CFBLKSZ
 	ld		hl, (dmaAddr)
 	add		hl, de
 	ld		(dmaAddr), hl
@@ -587,13 +595,18 @@ secret_txt:
 
 no_match_message:	defm	"? ",0
 help_message:		defm	"Commands implemented:",CR,LF,0
-dump_message:		defm	"Displays blocks of memory.",CR,LF,0
+help_help:			defm    "Display this help",CR,LF,0
+dump_help:			defm	"Displays blocks of memory.",CR,LF,0
 dump_blks_prompt:	defm	"Enter number of 256-byte blocks to dump: ",0
 read_blks_prompt:	defm	"Enter number of sectors to read: ",0
 write_blks_prompt:	defm	"Enter number of sectors to write: ",0
-run_message:		defm	"Will jump to (execute) program at address entered.",CR,LF,0
-diskrd_message:		defm	"Reads one or more sectors from disk to memory.",CR,LF,0
-diskwr_message:		defm	"Writes one or more sectors from memory to disk.",CR,LF,0
+run_help:			defm	"Will jump to (execute) program at address entered.",CR,LF,0
+diskrd_help:		defm	"Reads one or more sectors from disk to memory.",CR,LF,0
+diskwr_help:		defm	"Writes one or more sectors from memory to disk.",CR,LF,0
+cpm_help:			defm	"Boot CP/M 2.2 from disk.",CR,LF,0
+boot_help:			defm	"Boot from first sector of disk",CR,LF,0
+led_help:			defm	"Restart LED flash cycle.",CR,LF,0
+about_help:			defm	"Displays information about the Z80 Retro Badge",CR,LF,0
 
 ;Strings for matching:
 dump_string:		defm	"AtHq",0
@@ -611,13 +624,19 @@ xyzzy_string:		defm	"]x_{\",0
 no_match_string:	defm	0,0
 
 ;Table for matching strings to jumps
-parse_table:	defw	dump_string,dump_jump
-				defw	jump_string,run_jump,run_string,run_jump
-				defw	question_string,help_jump,help_string,help_jump
-				defw	diskrd_string,diskrd_jump,diskwr_string,diskwr_jump
-				defw	cpm_string,cpm_jump,boot_string,boot_jump
-				defw	led_string,led_jump,about_string,about_jump
-				defw    xyzzy_string,xyzzy_jump,no_match_string,no_match_jump
+parse_table:	defw	dump_string,dump_jump,dump_help
+				defw	jump_string,run_jump,run_help
+				defw    run_string,run_jump,run_help
+				defw	question_string,help_jump,help_help
+				defw    help_string,help_jump,help_help
+				defw	diskrd_string,diskrd_jump,diskrd_help
+				defw    diskwr_string,diskwr_jump,diskrd_help
+				defw	cpm_string,cpm_jump,cpm_help
+				defw    boot_string,boot_jump,boot_help
+				defw	led_string,led_jump,led_help
+				defw    about_string,about_jump,about_help
+				defw    xyzzy_string,xyzzy_jump,0
+				defw    no_match_string,no_match_jump,0
 
 ;------------------------------------------------------------------------------
 

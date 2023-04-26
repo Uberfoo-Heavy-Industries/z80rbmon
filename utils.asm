@@ -1,10 +1,10 @@
 ;The subroutines for the serial port use these variables in RAM:
-current_location	equ		0xdb00		;word variable in RAM
-line_count			equ		0xdb02		;byte variable in RAM
-byte_count			equ		0xdb03		;byte variable in RAM
-value_pointer		equ		0xdb04		;word variable in RAM
-current_value		equ		0xdb06		;word variable in RAM
-buffer				equ		0xdb08		;buffer in RAM -- up to stack area
+current_location	equ		STACK+1		;word variable in RAM
+line_count			equ		STACK+3		;byte variable in RAM
+byte_count			equ		STACK+4		;byte variable in RAM
+value_pointer		equ		STACK+5		;word variable in RAM
+current_value		equ		STACK+7		;word variable in RAM
+buffer				equ		STACK+9		;buffer in RAM -- up to stack area
 
 ;
 ;Subroutine to get a string from serial input, place in buffer.
