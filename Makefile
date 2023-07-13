@@ -10,7 +10,7 @@ cbios128.asm:
 ROM_SRCS:
 
 version.asm: 
-	echo VERSION text \"v1.1-`date -u +%Y%m%d%H%M`\",0 > version.asm
+	echo VERSION text \"v1.2-DC31-`date -u +%Y%m%d%H%M`\",0 > version.asm
 
 z80rbmon.hex: ROM_SRCS version.asm
 	zmac monitor.asm
