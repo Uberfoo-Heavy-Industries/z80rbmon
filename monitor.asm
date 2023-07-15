@@ -63,6 +63,12 @@ MON		org		0x0000		; MONITOR ROM RESET VECTOR
 		defw    rx_spec_cond
 
 
+;------------------------------------------------------------------------------
+; serial number and version number
+;------------------------------------------------------------------------------
+SERIAL: org 	0x0010		; Serial number is at 0x10
+		ds		8			;  and is 8 bytes ASCII
+		defb	0			; null terminator
 		INCLUDE "version.asm"	; Version number definition
 
 ;------------------------------------------------------------------------------
@@ -147,6 +153,10 @@ monitor_cold_start:
 	ld		hl,monitor_message
 	call	write_string
 	ld		hl,VERSION
+	call	write_string
+	ld		hl,serial_message
+	call	write_string
+	ld		hl,SERIAL
 	call	write_string
 
 	call	write_newline
@@ -566,6 +576,9 @@ monitor_message:
 	defm	ESC,"[97m"
 	defm	"                      by Uberfoo Heavy Industries",CR,LF
 	defm	"                       Version: ",ESC,"[0m",0
+serial_message:	
+	defm    CR,LF,ESC,"[97m"
+	defm    "                       Serial: ",ESC,"[0m",0
 
 about_txt:
 	defm	CR,LF
@@ -634,7 +647,7 @@ parse_table:	defw	dump_string,dump_jump,dump_help
 
 ;------------------------------------------------------------------------------
 
-		org		0x1100
+		org		0x1D00
 
 		incbin	small.png
 
