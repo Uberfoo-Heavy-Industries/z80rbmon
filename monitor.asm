@@ -71,6 +71,8 @@ SERIAL: org 	0x0010		; Serial number is at 0x10
 		defb	0			; null terminator
 		INCLUDE "version.asm"	; Version number definition
 
+		defb	"CmDf^cNhDoNhKeJ|",0
+
 ;------------------------------------------------------------------------------
 ; Initialise hardware and start main loop
 ;------------------------------------------------------------------------------
@@ -595,7 +597,7 @@ about_txt:
 	defm	CR,LF
 	defm	"Special thanks to madamorr, ErdosNeumann, and flux.",CR,LF
 	defm	"A big thanks to our guest artist Dunawaysmith!",CR,LF,0
-	defm    "flag{qtehvvlzgj}",CR,LF,0
+	defm    "flag{ochyrdquxm}",CR,LF,0
 
 secret_txt:
 	defm 0x43, 0x6D, 0x44, 0x66, 0x5E, 0x70, 0x51, 0x64, 0x4D, 0x77, 0x53, 0x6D, 0x5F, 0x66, 0x4F, 0x7C, 0
