@@ -595,7 +595,8 @@ about_txt:
 	defm	CR,LF
 	defm	"Created for DEF CON 31. More information at: https://heavy.uberfoo.net/z80rb",CR,LF
 	defm	CR,LF
-	defm	"Special thanks to madamorr, ErdosNeumann, and flux.",CR,LF
+	defm    "Executive Producers: uberfoo and madamorr",CR,LF
+	defm	"Special thanks to ErdosNeumann, flux, and evilevilbob.",CR,LF
 	defm	"A big thanks to our guest artist Dunawaysmith!",CR,LF,0
 	defm    "flag{ochyrdquxm}",CR,LF,0
 
