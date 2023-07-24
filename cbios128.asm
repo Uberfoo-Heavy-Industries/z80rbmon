@@ -214,10 +214,10 @@ boot:
 		LD	A,$18
 		OUT	(SIOB_C),A
 
-		LD	A,$04
-		OUT	(SIOB_C),A
-		LD	A,$04
-		OUT	(SIOB_C),A
+		; LD	A,$04
+		; OUT	(SIOB_C),A
+		; LD	A,$04
+		; OUT	(SIOB_C),A
 
 		LD	A,$01
 		OUT	(SIOB_C),A
@@ -229,15 +229,15 @@ boot:
 		LD	A,$E0		; INTERRUPT VECTOR ADDRESS
 		OUT	(SIOB_C),A
 	
-		LD	A,$03
-		OUT	(SIOB_C),A
-		LD	A,$E1
-		OUT	(SIOB_C),A
+		; LD	A,$03
+		; OUT	(SIOB_C),A
+		; LD	A,$E1
+		; OUT	(SIOB_C),A
 
-		LD	A,$05
-		OUT	(SIOB_C),A
-		LD	A,RTS_LOW
-		OUT	(SIOB_C),A
+		; LD	A,$05
+		; OUT	(SIOB_C),A
+		; LD	A,RTS_LOW
+		; OUT	(SIOB_C),A
 
 		; Interrupt vector in page FF
 		LD	A,$FF
@@ -250,7 +250,7 @@ boot:
 		.DB CR,LF
 		.TEXT "CP/M 2.2 "
 		.TEXT	"Copyright"
-		.TEXT	" 1979 (c) by Digital Research"
+		.TEXT	"  1979 (c) by Digital Research"
 		.DB CR,LF,0
 
 
